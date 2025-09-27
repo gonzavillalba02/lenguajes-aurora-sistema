@@ -1,21 +1,36 @@
-import express from "express";
+import express, { Application } from "express";
 import dotenv from "dotenv";
-import { pool } from "./config/database";
+
+// Importar rutas
+import testRoutes from "./routes/test.routes";
+import authRoutes from "./routes/auth.routes";
 
 dotenv.config();
 
-const app = express();
-app.use(express.json());
+export class App {
+  private app: Application;
 
-// Ruta de prueba: chequea conexión a DB
-app.get("/ping", async (req, res) => {
-  try {
-    const [rows] = await pool.query("SELECT NOW() AS now");
-    res.json(rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error conectando a la DB" });
+  constructor(private port?: number | string) {
+    this.app = express();
+    this.settings();
+    this.middlewares();
+    this.routes();
   }
-});
 
-export default app;
+  private settings() {
+    this.app.set("port", this.port || process.env.PORT || 4000);
+  }
+
+  private middlewares() {
+    this.app.use(express.json());
+  }
+
+  private routes() {
+    this.app.use("/api/test", testRoutes);
+    this.app.use("/api/auth", authRoutes);
+  }
+
+  public getApp(): Application {
+    return this.app;
+  }
+}

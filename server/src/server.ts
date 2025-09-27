@@ -1,6 +1,8 @@
-import app from "./app";
+import { App } from "./app";
 
-const PORT = process.env.PORT || 4000;
+const appInstance = new App();
+const app = appInstance.getApp();
+const PORT = app.get("port");
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo correctamente en el puerto ${PORT}`);

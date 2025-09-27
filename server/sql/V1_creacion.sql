@@ -113,3 +113,7 @@ CREATE TABLE consulta (
     FOREIGN KEY (estado_id) REFERENCES estado_consulta(id),
     FOREIGN KEY (resuelta_por) REFERENCES usuario(id)
 );
+
+-- creación del admin (contra hasheada: admin)
+INSERT INTO usuario (dni, nombre, email, password, rol_id, activo)
+VALUES (11111111, 'Admin', 'admin@aurora.com', '$2a$10$8UfqxHEyk1z0mdmjGMsLYO8cCfv2J0tGl2U8M4QTsbG8gYyn4GZbe', 2, TRUE);
