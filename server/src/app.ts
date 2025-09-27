@@ -5,6 +5,10 @@ import dotenv from "dotenv";
 import testRoutes from "./routes/test.routes";
 import authRoutes from "./routes/auth.routes";
 import usuarioRoutes from "./routes/usuario.routes";
+import habitacionRoutes from "./routes/habitacion.routes";
+import personaRoutes from "./routes/persona.routes";
+import consultaRoutes from "./routes/consulta.routes";
+import reservaRoutes from "./routes/reserva.routes";
 
 dotenv.config();
 
@@ -30,6 +34,10 @@ export class App {
     this.app.use("/api/test", testRoutes);
     this.app.use("/api/auth", authRoutes);
     this.app.use("/api/usuarios", usuarioRoutes)
+    this.app.use("/api/habitaciones", habitacionRoutes);
+    this.app.use("/api/personas", personaRoutes);
+    this.app.use("/api/consultas", consultaRoutes);
+    this.app.use("/api/reservas", reservaRoutes);
   }
 
   public getApp(): Application {
