@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 // Importar rutas
 import testRoutes from "./routes/test.routes";
 import authRoutes from "./routes/auth.routes";
+import usuarioRoutes from "./routes/usuario.routes";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ export class App {
   private routes() {
     this.app.use("/api/test", testRoutes);
     this.app.use("/api/auth", authRoutes);
+    this.app.use("/api/usuarios", usuarioRoutes)
   }
 
   public getApp(): Application {

@@ -7,13 +7,21 @@ export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-    const [rows]: any = await pool.query("SELECT * FROM usuario WHERE email = ?", [email]);
+    const [rows]: any = await pool.query(
+      "SELECT * FROM usuario WHERE email = ?",
+      [email]
+    );
 
     if (rows.length === 0) {
       return res.status(401).json({ message: "Usuario no encontrado" });
     }
 
     const user = rows[0];
+
+    // Verificar que el usuario esté activo
+    if (!user.activo) {
+      return res.status(403).json({ message: "Usuario inactivo. Contacte a un administrador." });
+    }
 
     // Comparar password
     const isMatch = await bcrypt.compare(password, user.password);
