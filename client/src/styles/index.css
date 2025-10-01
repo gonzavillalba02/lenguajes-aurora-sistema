@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+/* tokens del sistema */
+@theme {
+   /* colores base */
+   --color-bg: #111827;
+   --color-nav: #020e29;
+   --color-bg2: #1f2937;
+   --color-filter: #273345;
+   --color-button: #3b82f6;
+   --color-text: #ffffff;
+   --color-msg: #505b4f;
+
+   /* estados reservas */
+   --color-estado-pendienteReserva: #3b80d8;
+   --color-estado-pendientePago: #dbb008;
+   --color-estado-aprobada: #04913c;
+   --color-estado-rechazada: #dc2626;
+   --color-estado-cancelada: #505b4f;
+
+   /* estados habitaciones */
+   --color-habitacion-libre: #04913c;
+   --color-habitacion-ocupada: #dbb008;
+   --color-habitacion-cerrada: #dc2626;
+
+   /* extras */
+   --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.25);
+   --radius-xl2: 1.25rem;
+}
