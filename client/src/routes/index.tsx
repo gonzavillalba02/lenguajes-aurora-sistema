@@ -13,7 +13,7 @@ import EstadisticasAdm from "../pages/administrador/Estadisticas";
 import { ProtectedRoute } from "../routes/protected";
 import NotFound from "../pages/login/NotFound";
 import Forbidden from "../pages/login/Forbidden";
-
+//Rutas de la aplicación, con layouts y protección por roles.
 export const router = createBrowserRouter([
    {
       path: "/",

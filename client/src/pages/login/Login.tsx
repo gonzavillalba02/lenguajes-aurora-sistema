@@ -21,18 +21,15 @@ export default function LoginPage() {
       try {
          const { token } = await login({ email, password }); // backend devuelve { token }
          // guardo token + hidrato user desde el propio JWT
-         setAuth(token, null);
+         setAuth(token);
 
          // leo el rol ya normalizado desde la store; si no, decodifico
-         const st = useAuthStore.getState();
-         const role = st.user?.role ?? decodeJWT(token).role;
-
+         const role = useAuthStore.getState().user?.role;
          if (!role) {
             setVerifying("error");
             setTimeout(() => setVerifying("idle"), 1100);
             return;
          }
-
          setVerifying("ok");
          setTimeout(() => {
             navigate(role === "admin" ? "/administrador" : "/operador", {
@@ -127,9 +124,8 @@ export default function LoginPage() {
                               </button>
                            </form>
 
-                           <p className="text-xs mt-4 text-slate-600/90">
-                              Accedé con tu usuario de operador o admin. Los
-                              accesos están validados contra tu backend.
+                           <p className="text-xs mt-4 text-slate-600/90 text-center">
+                              Accedé con tu usuario de operador o admin.
                            </p>
                         </motion.div>
                      </div>

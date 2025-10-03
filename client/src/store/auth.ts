@@ -1,80 +1,69 @@
-// Importa la función `create` para crear el store y `persist` para persistirlo en storage (localStorage por defecto).
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-//Roles posibles
+// Tipos y funciones para manejo de auth y JWT
 export type Role = "operador" | "admin";
-// Defineción del usuario autenticado
-export type User = { id: number; name: string; role: Role };
+export type User = { id: number; role: Role };
 
-// Define el estado y las acciones del store de autenticación.
 type AuthState = {
-   token: string | null; // JWT crudo (lo devolvió el backend al hacer login)
-   user: User | null; // Usuario decodificado (id, nombre, rol)
-   _hydrated: boolean; // Flag para saber si ya se rehidrató desde storage
-   setAuth: (token: string, user?: Partial<User> | null) => void; // Setea token y usuario
-   clear: () => void; //Limpia sesión (logout)
-   setHydrated: (v: boolean) => void; //Marca hidratación completa
+   token: string | null;
+   user: User | null;
+   _hydrated: boolean;
+   setHydrated: (v: boolean) => void;
+   setAuth: (token: string) => void;
+   clear: () => void;
 };
 
-// Ajustá estos IDs a la BD.
-const ROLE_MAP: Record<number, Role> = {
-   1: "operador",
-   2: "admin",
-};
-// Si no es convertible a número o no existe en el mapa, devuelve undefined.
-function roleFromRolId(rol: unknown): Role | undefined {
-   const n = Number(rol);
-   return Number.isFinite(n) ? ROLE_MAP[n] : undefined;
+//Mapeo de roles numéricos a strings
+const ROLE_MAP: Record<number, Role> = { 1: "operador", 2: "admin" };
+// Decodifica el payload de un JWT (sin validar)
+function base64UrlToJson<T>(b64url: string): T {
+   // JWT usa base64url: reemplazos y padding
+   const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+   const pad = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+   return JSON.parse(atob(pad));
 }
-
-export function decodeJWT(token: string): Partial<User> & { role?: Role } {
+// Decodifica un JWT y extrae id y rol (numérico)
+function decodeJWT(token: string): { id?: number; rol?: number } {
    try {
-      const p = token.split(".")[1];
-      const pad = p.padEnd(p.length + ((4 - (p.length % 4)) % 4), "=");
-      const pay = JSON.parse(atob(pad));
-      return {
-         id: Number(pay.id ?? pay.sub ?? 0),
-         name: String(pay.name ?? pay.nombre ?? pay.username ?? "Usuario"),
-         role: roleFromRolId(pay.rol), // viene numérico en claim "rol"
-      };
+      const payload = token.split(".")[1];
+      return base64UrlToJson(payload);
    } catch {
       return {};
    }
 }
-
+// Store de auth con persistencia en localStorage
 export const useAuthStore = create<AuthState>()(
+   //Persistencia en localStorage
    persist(
-      (set, get) => ({
+      (set) => ({
          token: null,
          user: null,
-         _hydrated: false,
-         setHydrated: (v) => set({ _hydrated: v }),
-         setAuth: (token, user) => {
-            const fromToken = decodeJWT(token);
-            const role =
-               (user?.role as Role | undefined) ??
-               roleFromRolId((user as any)?.rol) ??
-               fromToken.role;
+         _hydrated: false, // para saber si ya cargó el estado persistente
 
+         //Hidrata el store (marca que ya cargó el estado persistente)
+         setHydrated: (v) => set({ _hydrated: v }),
+         // Setea token y user decodificando el JWT; si rol no mapeable, user queda null
+         setAuth: (token) => {
+            const { id, rol } = decodeJWT(token);
+            const role = rol != null ? ROLE_MAP[Number(rol)] : undefined;
+            // actualiza token y user (si rol no mapeable, user queda null)
             set({
                token,
                user: role
                   ? {
-                       id: Number(user?.id ?? fromToken.id ?? 0),
-                       name: String(user?.name ?? fromToken.name ?? "Usuario"),
+                       id: Number(id ?? 0),
                        role,
                     }
                   : null,
             });
          },
+         // Limpia token y user (ej. para logout o token inválido)
          clear: () => set({ token: null, user: null }),
       }),
       {
          name: "auth-store",
-         onRehydrateStorage: () => (state) => state?.setHydrated(true),
-         // por seguridad, solo persisto lo necesario
-         partialize: (s) => ({ token: s.token, user: s.user }),
+         onRehydrateStorage: () => (state) => state?.setHydrated(true), // marca como hidratado al cargar
+         partialize: (s) => ({ token: s.token, user: s.user }), // solo persiste token y user
       }
    )
 );
