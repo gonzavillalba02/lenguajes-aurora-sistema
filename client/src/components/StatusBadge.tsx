@@ -21,10 +21,11 @@ export function StatusBadge({
               Ocupada: "bg-habitacion-ocupada/20 text-habitacion-ocupada",
               Cerrada: "bg-habitacion-cerrada/20 text-habitacion-cerrada",
            };
+
    return (
       <span
-         className={`px-2 py-1 rounded-md text-sm font-medium ${
-            map[value] || "bg-white/10"
+         className={`inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold ${
+            map[value] ?? "bg-white/10 text-white/80"
          }`}
       >
          {value}

@@ -1,21 +1,41 @@
 import { Outlet } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
-import Topbar from "../components/Topbar";
+import Sidebar from "../components/SideBar";
+import Topbar from "../components/TopBar";
+import { Home, CalendarDays, BedDouble, MessageSquare } from "lucide-react";
+import type { JSX } from "react";
 
-export default function OperatorLayout() {
+// ✅ Items locales, NO exportados
+const operadorNavItems: Array<{
+   to: string;
+   label: string;
+   icon?: JSX.Element;
+}> = [
+   { to: "/operador", label: "Inicio", icon: <Home className="size-4" /> },
+   {
+      to: "/operador/reservas",
+      label: "Reservas",
+      icon: <CalendarDays className="size-4" />,
+   },
+   {
+      to: "/operador/habitaciones",
+      label: "Habitaciones",
+      icon: <BedDouble className="size-4" />,
+   },
+   {
+      to: "/operador/consultas",
+      label: "Consultas",
+      icon: <MessageSquare className="size-4" />,
+   },
+];
+
+export default function OperadorLayout() {
    return (
-      <div className="min-h-screen">
-         <Sidebar
-            items={[
-               { to: "/operador", label: "Inicio" },
-               { to: "/operador/reservas", label: "Reservas" },
-               { to: "/operador/habitaciones", label: "Habitaciones" },
-               { to: "/operador/consultas", label: "Consultas" },
-            ]}
-         />
-         <main className="pl-16 hover:pl-64 transition-all">
+      <div className="min-h-screen bg-bg text-text">
+         <Sidebar items={operadorNavItems} />
+         <main className="pl-16">
+            {/* padding fijo: no se mueve el contenido */}
             <Topbar title="Panel Operador" />
-            <div className="max-w-7xl mx-auto p-4">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">
                <Outlet />
             </div>
          </main>
