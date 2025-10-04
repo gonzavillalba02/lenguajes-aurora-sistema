@@ -1,9 +1,16 @@
+// src/pages/operador/components/RoomsGrid.tsx  (y/o src/pages/admin/components/RoomsGrid.tsx)
 import { useMemo } from "react";
 import type { HabStatus } from "../../../types/types";
 
 export type Room = { id: number; numero: number; status: HabStatus };
 
-export default function RoomsGrid({ rooms }: { rooms: Room[] }) {
+export default function RoomsGrid({
+   rooms,
+   onSelect,
+}: {
+   rooms: Room[];
+   onSelect?: (room: Room) => void;
+}) {
    const ordered = useMemo(
       () => [...rooms].sort((a, b) => a.numero - b.numero),
       [rooms]
@@ -24,6 +31,7 @@ export default function RoomsGrid({ rooms }: { rooms: Room[] }) {
               ${roomBg(r.status)}
             `}
                   title={`Hab. ${r.numero} — ${r.status}`}
+                  onClick={() => onSelect?.(r)}
                >
                   {r.numero}
                </button>

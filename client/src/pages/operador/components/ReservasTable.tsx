@@ -1,4 +1,5 @@
 import { StatusBadge } from "../../../components/StatusBadge";
+import { Eye } from "lucide-react";
 
 type Row = {
    id: number;
@@ -18,9 +19,13 @@ type Row = {
 export default function ReservasTable({
    rows,
    loading,
+   onRowClick,
+   showViewIcon = true,
 }: {
    rows: Row[];
    loading: boolean;
+   onRowClick?: (id: number) => void;
+   showViewIcon?: boolean;
 }) {
    return (
       <div className="overflow-auto rounded-xl border border-white/10">
@@ -34,13 +39,14 @@ export default function ReservasTable({
                   </th>
                   <th className="px-3 py-2 text-left font-medium">Tipo</th>
                   <th className="px-3 py-2 text-left font-medium">Estado</th>
+                  {showViewIcon && <th className="w-10" />}
                </tr>
             </thead>
             <tbody>
                {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                      <tr key={i} className="border-t border-white/10">
-                        <td className="px-3 py-2" colSpan={5}>
+                        <td className="px-3 py-2" colSpan={6}>
                            <div className="h-5 w-full animate-pulse rounded bg-white/5" />
                         </td>
                      </tr>
@@ -49,15 +55,14 @@ export default function ReservasTable({
                   rows.map((r) => (
                      <tr
                         key={r.id}
-                        className="border-t border-white/10 hover:bg-white/5 transition-colors"
+                        className={`border-t border-white/10 transition-colors ${
+                           onRowClick ? "cursor-pointer hover:bg-white/5" : ""
+                        }`}
+                        onClick={() => onRowClick?.(r.id)}
                      >
                         <td className="px-3 py-2">{r.cliente || "—"}</td>
                         <td className="px-3 py-2">
-                           <div className="inline-flex items-center gap-2">
-                              <span>
-                                 {formatRange(r.fechaInicio, r.fechaFin)}
-                              </span>
-                           </div>
+                           <span>{formatRange(r.fechaInicio, r.fechaFin)}</span>
                         </td>
                         <td className="px-3 py-2 font-semibold">
                            {r.habitacionNumero}
@@ -66,13 +71,27 @@ export default function ReservasTable({
                         <td className="px-3 py-2">
                            <StatusBadge tipo="reserva" value={r.status} />
                         </td>
+                        {showViewIcon && (
+                           <td
+                              className="px-2"
+                              onClick={(e) => {
+                                 e.stopPropagation();
+                                 onRowClick?.(r.id);
+                              }}
+                              title="Ver detalle"
+                           >
+                              <button className="p-1 rounded hover:bg-white/10">
+                                 <Eye size={16} />
+                              </button>
+                           </td>
+                        )}
                      </tr>
                   ))
                ) : (
                   <tr className="border-t border-white/10">
                      <td
                         className="px-3 py-2 text-center text-white/60"
-                        colSpan={5}
+                        colSpan={6}
                      >
                         No hay reservas pendientes
                      </td>

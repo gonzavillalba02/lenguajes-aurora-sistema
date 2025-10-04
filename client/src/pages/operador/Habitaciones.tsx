@@ -4,7 +4,7 @@ import KpiCard from "../operador/components/KpiCard";
 import RoomsGrid from "./components/RoomsGrid";
 import type { HabStatus, HabitacionDomain } from "../../types/types";
 import { fetchHabitaciones } from "../../services/habitacion.service";
-
+import HabitacionDetailsModal from "../operador/components/HabitacionDetailsModal";
 type RoomVM = { id: number; numero: number; status: HabStatus; tipo?: string };
 
 // ---- helpers ----
@@ -77,6 +77,10 @@ export default function Habitaciones() {
          return matchesQ && matchesEstado && matchesTipo;
       });
    }, [roomsVM, q, estado, tipo /*, from, to*/]);
+   const [showRoomModal, setShowRoomModal] = useState(false);
+   const [selectedRoom, setSelectedRoom] = useState<HabitacionDomain | null>(
+      null
+   );
 
    return (
       <div className="flex flex-col gap-6">
@@ -162,9 +166,28 @@ export default function Habitaciones() {
                   ))}
                </div>
             ) : (
-               <RoomsGrid rooms={filtered} />
+               <RoomsGrid
+                  rooms={filtered}
+                  onSelect={(r) => {
+                     const found =
+                        habitaciones.find((h) => h.id === r.id) || null;
+                     setSelectedRoom(found);
+                     setShowRoomModal(true);
+                  }}
+               />
             )}
          </div>
+         <HabitacionDetailsModal
+            open={showRoomModal}
+            room={selectedRoom}
+            onClose={() => setShowRoomModal(false)}
+            onChanged={async () => {
+               setLoading(true);
+               const data = await fetchHabitaciones();
+               setHabitaciones(Array.isArray(data) ? data : []);
+               setLoading(false);
+            }}
+         />
       </div>
    );
 }

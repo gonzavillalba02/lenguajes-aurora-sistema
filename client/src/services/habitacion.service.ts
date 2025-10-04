@@ -31,3 +31,19 @@ export async function fetchHabitaciones(): Promise<HabitacionDomain[]> {
    const arr = Array.isArray(data) ? data : [];
    return arr.map(mapHabitacion);
 }
+
+export async function bloquearHabitacion(id: number) {
+   return api.patch(`/habitaciones/${id}/bloquear`, {});
+}
+
+export async function desbloquearHabitacion(id: number) {
+   return api.patch(`/habitaciones/${id}/desbloquear`, {});
+}
+
+export async function desactivarHabitacion(id: number) {
+   return api.patch(`/habitaciones/${id}/desactivar`, {});
+}
+
+export async function reactivarHabitacion(id: number) {
+   return api.patch(`/habitaciones/${id}/reactivar`, {});
+}

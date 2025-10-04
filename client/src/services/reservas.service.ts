@@ -3,6 +3,9 @@ import type {
    ReservaRaw,
    ReservaDomain,
    ReservaEstadoDB,
+   CrearReservaByIdDTO,
+   CrearReservaResponse,
+   ID,
 } from "../types/types";
 
 // --- utils internas (sin dependencia de UI) ---
@@ -84,4 +87,32 @@ export function contarPorEstado(
          cancelada: 0,
       } as Record<ReservaEstadoDB, number>
    );
+}
+
+export async function crearReserva(
+   payload: CrearReservaByIdDTO
+): Promise<CrearReservaResponse> {
+   const { data } = await api.post<CrearReservaResponse>("/reservas", payload, {
+      headers: { "Content-Type": "application/json" },
+   });
+   return data;
+}
+
+// ---- STATE TRANSITIONS ----
+export async function pasarAPendientePago(id: ID) {
+   await api.patch(`/reservas/${id}/pendiente-pago`);
+}
+export async function aprobarReserva(id: ID) {
+   await api.patch(`/reservas/${id}/aprobar`);
+}
+export async function rechazarReserva(id: ID) {
+   await api.patch(`/reservas/${id}/rechazar`);
+}
+export async function cancelarReserva(id: ID) {
+   await api.patch(`/reservas/${id}/cancelar`);
+}
+
+export async function fetchReservaById(id: number): Promise<ReservaDomain> {
+   const { data } = await api.get<ReservaRaw>(`/reservas/${id}`);
+   return mapReserva(data);
 }

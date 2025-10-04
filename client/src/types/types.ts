@@ -205,3 +205,18 @@ export type ConsultasKpi = {
    pendientes: number;
    respondidas: number;
 };
+
+//Crear reserva
+export type CrearReservaByIdDTO = {
+   persona_id: number;
+   habitacion_id: number;
+   fecha_inicio: ISODateString; // "YYYY-MM-DD"
+   fecha_fin: ISODateString; // "YYYY-MM-DD"
+   observaciones?: string | null;
+};
+
+export type CrearReservaResponse = {
+   message: string; // "Reserva creada y aprobada"
+   reservaId: number; // 13
+   personaId: number; // 5
+};
