@@ -4,7 +4,8 @@ import { crearHabitacion,
         getHabitacionById,
         desactivarHabitacion, reactivarHabitacion,
         bloquearHabitacion, desbloquearHabitacion,
-        actualizarHabitacion } from "../controllers/habitacion.controller";
+        actualizarHabitacion,
+        getTiposHabitacion } from "../controllers/habitacion.controller";
 import { verifyToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -23,5 +24,8 @@ router.patch("/:id/desbloquear", verifyToken([1, 2]), desbloquearHabitacion);
 
 // Actualizar
 router.put("/:id", verifyToken([1, 2]), actualizarHabitacion);
+
+// Obtener tipos de habitación con su cantidad de habitaciones
+router.get("/tipos/lista", getTiposHabitacion);
 
 export default router;
