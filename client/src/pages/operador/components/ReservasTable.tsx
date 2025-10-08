@@ -33,7 +33,9 @@ export default function ReservasTable({
             <thead className="bg-bg/40">
                <tr className="text-white/60">
                   <th className="px-3 py-2 text-left font-medium">Cliente</th>
-                  <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                  <th className="px-3 py-2 text-left font-medium">
+                     Fecha de Reserva
+                  </th>
                   <th className="px-3 py-2 text-left font-medium">
                      Habitación
                   </th>

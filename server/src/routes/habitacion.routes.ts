@@ -1,10 +1,15 @@
 import { Router } from "express";
-import { crearHabitacion,
-        getHabitaciones, 
-        getHabitacionById,
-        desactivarHabitacion, reactivarHabitacion,
-        bloquearHabitacion, desbloquearHabitacion,
-        actualizarHabitacion } from "../controllers/habitacion.controller";
+import {
+   crearHabitacion,
+   getHabitaciones,
+   getHabitacionById,
+   desactivarHabitacion,
+   reactivarHabitacion,
+   bloquearHabitacion,
+   desbloquearHabitacion,
+   actualizarHabitacion,
+   actualizarObservacionesHabitacion,
+} from "../controllers/habitacion.controller";
 import { verifyToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -23,5 +28,5 @@ router.patch("/:id/desbloquear", verifyToken([1, 2]), desbloquearHabitacion);
 
 // Actualizar
 router.put("/:id", verifyToken([1, 2]), actualizarHabitacion);
-
+router.patch("/:id/observaciones", actualizarObservacionesHabitacion);
 export default router;

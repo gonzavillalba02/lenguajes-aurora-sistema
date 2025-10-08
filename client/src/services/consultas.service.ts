@@ -1,15 +1,15 @@
-import { api } from "./api"; // <- ajustá el path si tu axios client está en otro lugar
+import { api } from "./api"; // <- tu axios client
 import type {
    ConsultaRaw,
    ConsultaDomain,
    ConsultaCardVM,
    ConsultasKpi,
-} from "../types/types";
+   ConsultaDetailVM,
+} from "../types/consulta.types";
 
 /* =========================
  *  Adaptadores
  *  ========================= */
-
 function adaptConsultaDomain(raw: ConsultaRaw): ConsultaDomain {
    return {
       id: raw.id,
@@ -32,24 +32,35 @@ export function adaptConsultaVM(c: ConsultaDomain): ConsultaCardVM {
       estadoLabel: c.estado === "pendiente" ? "Pendiente" : "Resuelta",
    };
 }
-
+/** Adaptador para el DETALLE del modal a partir del domain */
+export function adaptConsultaDetailFromDomain(
+   c: ConsultaDomain
+): ConsultaDetailVM {
+   return {
+      id: c.id,
+      estadoLabel: c.estado === "pendiente" ? "Pendiente" : "Resuelta",
+      clienteNombre: `${c.cliente.nombre} ${c.cliente.apellido}`.trim(),
+      clienteEmail: c.cliente.email ?? "",
+      asunto: "Consulta",
+      mensajeCliente: c.texto ?? "",
+      respuesta: undefined,
+      operadorNombre: c.resueltaPor ?? undefined,
+      createdAt: undefined,
+      respondedAt: undefined,
+   };
+}
 /* =========================
  *  Helpers
  *  ========================= */
-
-export function splitConsultas(all: ConsultaDomain[]): {
-   pendientes: ConsultaDomain[];
-   respondidas: ConsultaDomain[];
-} {
+// helpers KPI
+function splitConsultas(all: ConsultaDomain[]) {
    const pendientes: ConsultaDomain[] = [];
    const respondidas: ConsultaDomain[] = [];
-   for (const c of all) {
+   for (const c of all)
       (c.estado === "pendiente" ? pendientes : respondidas).push(c);
-   }
    return { pendientes, respondidas };
 }
-
-export function consultasKpi(all: ConsultaDomain[]): ConsultasKpi {
+function consultasKpi(all: ConsultaDomain[]): ConsultasKpi {
    const { pendientes, respondidas } = splitConsultas(all);
    return {
       total: all.length,
@@ -58,28 +69,41 @@ export function consultasKpi(all: ConsultaDomain[]): ConsultasKpi {
    };
 }
 
-/* =========================
- *  Servicio HTTP
- *  ========================= */
-
 const BASE = "/consultas";
 
 export const ConsultasService = {
-   /** Trae TODAS las consultas y las normaliza a Domain */
    async fetchAll(): Promise<ConsultaDomain[]> {
       const { data } = await api.get<ConsultaRaw[]>(BASE);
       return data.map(adaptConsultaDomain);
    },
 
-   /** Trae todas y las devuelve separadas por estado */
    async fetchGrouped(): Promise<{
       pendientes: ConsultaDomain[];
       respondidas: ConsultaDomain[];
       kpi: ConsultasKpi;
    }> {
-      const all = await ConsultasService.fetchAll();
+      const all = await this.fetchAll();
       const groups = splitConsultas(all);
       const kpi = consultasKpi(all);
       return { ...groups, kpi };
+   },
+
+   // No existe GET /consultas/:id -> buscamos en el listado
+   async fetchById(id: number): Promise<ConsultaDetailVM> {
+      const all = await this.fetchAll();
+      const found = all.find((c) => c.id === id);
+      if (!found) throw new Error("Consulta no encontrada");
+      return adaptConsultaDetailFromDomain(found);
+   },
+
+   // PATCH /consultas/:id/responder  { respuesta }
+   async responder(id: number, respuesta: string): Promise<void> {
+      await api.patch(`${BASE}/${id}/responder`, { respuesta });
+   },
+
+   // POST /consultas (por si lo necesitás)
+   async crear(payload: { texto: string; persona_id: number }) {
+      const { data } = await api.post(BASE, payload);
+      return data;
    },
 };

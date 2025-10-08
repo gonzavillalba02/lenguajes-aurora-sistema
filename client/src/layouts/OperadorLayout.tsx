@@ -4,7 +4,7 @@ import Topbar from "../components/TopBar";
 import { Home, CalendarDays, BedDouble, MessageSquare } from "lucide-react";
 import type { JSX } from "react";
 
-// ✅ Items locales, NO exportados
+// Generamos el array de items de navegación para el operador junto a los iconos de lucide
 const operadorNavItems: Array<{
    to: string;
    label: string;
@@ -30,11 +30,10 @@ const operadorNavItems: Array<{
 
 export default function OperadorLayout() {
    return (
-      <div className="min-h-screen bg-bg text-text">
+      <div className="min-h-screen ">
          <Sidebar items={operadorNavItems} />
          <main className="pl-16">
-            {/* padding fijo: no se mueve el contenido */}
-            <Topbar title="Panel Operador" />
+            <Topbar title="Panel Operador" rol="Operador" />
             <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 space-y-6">
                <Outlet />
             </div>

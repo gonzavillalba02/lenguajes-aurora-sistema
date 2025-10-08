@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { LogOut, Home } from "lucide-react";
-import type { NavItem } from "../types/nav";
+import type { NavItem } from "../types/core";
 
 export default function Sidebar({ items }: { items: NavItem[] }) {
    const { clear } = useAuthStore();

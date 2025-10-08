@@ -1,32 +1,19 @@
+// src/pages/admin/Reservas.tsx  (o donde lo tengas)
 import { useEffect, useMemo, useState } from "react";
 import KpiCard from "../operador/components/KpiCard";
 import ReservasTable from "./components/ReservasTable";
+
 import {
    fetchReservasAll,
    contarPorEstado,
 } from "../../services/reservas.service";
-import type {
-   ReservaDomain,
-   ReservaEstadoDB,
-   ReservaEstadoLabel,
-} from "../../types/types"; // ajustá el path
+
+// ✅ Types modulares
+import type { ISODateString } from "../../types/core";
+import type { ReservaDomain, ReservaEstadoDB } from "../../types/reserva.types";
+import { RESERVA_LABEL } from "../../types/reserva.types";
 
 // ======= helpers =======
-function estadoDbToLabel(e: ReservaEstadoDB): ReservaEstadoLabel {
-   switch (e) {
-      case "pendiente_verificacion":
-         return "Pendiente";
-      case "pendiente_pago":
-         return "Pendiente de pago";
-      case "aprobada":
-         return "Aprobada";
-      case "rechazada":
-         return "Rechazada";
-      case "cancelada":
-         return "Cancelada";
-   }
-}
-
 function toISODateOnly(d: Date) {
    const y = d.getFullYear();
    const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -43,8 +30,8 @@ export default function Reservas() {
    const [q, setQ] = useState("");
    const [estado, setEstado] = useState<ReservaEstadoDB | "">("");
    const [tipo, setTipo] = useState<string>("");
-   const [from, setFrom] = useState<string>(""); // yyyy-mm-dd
-   const [to, setTo] = useState<string>(""); // yyyy-mm-dd
+   const [from, setFrom] = useState<ISODateString>(""); // yyyy-mm-dd
+   const [to, setTo] = useState<ISODateString>(""); // yyyy-mm-dd
 
    useEffect(() => {
       (async () => {
@@ -86,7 +73,7 @@ export default function Reservas() {
       });
    }, [reservas, q, estado, tipo, from, to]);
 
-   // adaptar a la tabla que me pasaste (espera fechaInicio/fechaFin y status "label")
+   // adaptar a la tabla (espera fechaInicio/fechaFin y status como label)
    const rowsForTable = useMemo(
       () =>
          filtered.map((r) => ({
@@ -98,7 +85,12 @@ export default function Reservas() {
             fechaFin: toISODateOnly(r.rango.hasta),
             habitacionNumero: r.habitacion.numero,
             tipoHabitacion: r.habitacion.tipo ?? "—",
-            status: estadoDbToLabel(r.estado),
+            status: RESERVA_LABEL[r.estado] as
+               | "Pendiente"
+               | "Pendiente de pago"
+               | "Aprobada"
+               | "Rechazada"
+               | "Cancelada",
          })),
       [filtered]
    );
@@ -152,14 +144,14 @@ export default function Reservas() {
                <input
                   type="date"
                   value={from}
-                  onChange={(e) => setFrom(e.target.value)}
+                  onChange={(e) => setFrom(e.target.value as ISODateString)}
                   className="rounded-[var(--radius-xl2)] bg-bg2 px-3 py-2 text-sm text-text border border-white/10 focus:outline-none focus:ring-2 focus:ring-button/40"
                />
                <span className="text-white/50 text-sm">–</span>
                <input
                   type="date"
                   value={to}
-                  onChange={(e) => setTo(e.target.value)}
+                  onChange={(e) => setTo(e.target.value as ISODateString)}
                   className="rounded-[var(--radius-xl2)] bg-bg2 px-3 py-2 text-sm text-text border border-white/10 focus:outline-none focus:ring-2 focus:ring-button/40"
                />
             </div>

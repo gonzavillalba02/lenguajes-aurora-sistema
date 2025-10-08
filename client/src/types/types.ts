@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /** =========================
  *  Tipos base y utilitarios
  *  ========================= */
@@ -5,6 +7,12 @@ export type ID = number | string;
 export type ISODateString = string; // e.g. "2025-10-10T03:00:00.000Z" o "2025-10-10"
 export type MoneyString = string; // e.g. "100.00"
 export type Booleanish = boolean | 0 | 1;
+
+export type NavItem = {
+   to: string;
+   label: string;
+   icon?: ReactNode;
+};
 
 /** Estados válidos de una reserva (según DB) */
 export type ReservaEstadoDB =
@@ -46,14 +54,16 @@ export type ReservaRaw = {
 
 export type HabitacionRaw = {
    id: number;
-   nombre: string; // p.ej. "H101"
-   disponible: Booleanish; // 1/0 o boolean
-   activa: Booleanish; // 1/0 o boolean
-   tipo_id?: number;
-   tipo_nombre: string;
-   capacidad?: number;
-   precio_noche?: MoneyString;
+   nombre: string;
+   disponible: boolean | 0 | 1;
+   activa: boolean | 0 | 1;
    observaciones?: string | null;
+   tipo_id: number;
+   tipo_nombre: string;
+   descripcion?: string | null;
+   tipo_label?: string;
+   capacidad?: number | null;
+   precio_noche?: string | number | null;
 };
 
 /** =========================
@@ -72,11 +82,16 @@ export type RangoFecha = {
 
 export type HabitacionDomain = {
    id: number;
-   nombre: string; // "H101"
-   numero: number; // 101
-   tipo: string; // "parejas_estandar"
+   nombre: string;
+   numero: number;
+   tipo: string;
+   tipoSlug: string;
+   descripcion?: string | null;
    activa: boolean;
    disponible: boolean;
+   observaciones?: string | null;
+   capacidad?: number | null;
+   precioNoche?: number | null;
 };
 
 export type ReservaDomain = {
@@ -148,7 +163,6 @@ export type HeaderProps = {
 /** =========================
  *  Contratos de servicios (front)
  *  ========================= */
-// Si querés tipar los servicios a nivel de retorno (recomendado)
 export type ReservasService = {
    fetchAll: () => Promise<ReservaDomain[]>;
    fetchPendientes: (limit?: number) => Promise<ReservaDomain[]>;
@@ -187,8 +201,8 @@ export type ConsultaDomain = {
    id: number;
    texto: string;
    estado: ConsultaEstadoDB;
-   cliente: Persona; // { nombre, apellido, email }
-   resueltaPor?: string | null; // nombre del usuario que respondió (si hay)
+   cliente: { nombre: string; apellido: string; email?: string };
+   resueltaPor?: string | null;
 };
 
 // VIEWMODEL simple para tarjetas/listas en UI
@@ -219,4 +233,17 @@ export type CrearReservaResponse = {
    message: string; // "Reserva creada y aprobada"
    reservaId: number; // 13
    personaId: number; // 5
+};
+
+export type ConsultaDetailVM = {
+   id: number;
+   estadoLabel: "Pendiente" | "Resuelta";
+   clienteNombre: string;
+   clienteEmail: string; // lo derivamos del RAW
+   asunto: string; // "Consulta" (fallback)
+   mensajeCliente: string; // del RAW.texto
+   respuesta?: string; // no la tenemos; queda undefined
+   operadorNombre?: string; // del RAW.usuario_nombre
+   createdAt?: string; // no viene
+   respondedAt?: string; // no viene
 };

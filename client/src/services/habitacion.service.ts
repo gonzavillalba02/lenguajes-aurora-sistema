@@ -1,5 +1,8 @@
 import { api } from "./api";
-import type { HabitacionRaw, HabitacionDomain } from "../types/types";
+import type {
+   HabitacionRaw,
+   HabitacionDomain,
+} from "../types/habitacion.types";
 
 // --- utils internas ---
 function parseNumeroHabitacion(nombre?: string) {
@@ -10,6 +13,11 @@ function parseNumeroHabitacion(nombre?: string) {
 function b(x: boolean | 0 | 1): boolean {
    return typeof x === "boolean" ? x : Boolean(x);
 }
+function toNumberOrNull(v: any): number | null {
+   if (v === null || v === undefined || v === "") return null;
+   const n = Number(v);
+   return Number.isNaN(n) ? null : n;
+}
 
 // --- RAW -> DOMAIN ---
 function mapHabitacion(raw: HabitacionRaw): HabitacionDomain {
@@ -17,9 +25,14 @@ function mapHabitacion(raw: HabitacionRaw): HabitacionDomain {
       id: raw.id,
       nombre: raw.nombre,
       numero: parseNumeroHabitacion(raw.nombre),
-      tipo: raw.tipo_nombre,
+      tipo: raw.tipo_label || raw.tipo_nombre, // preferí el label del backend
+      tipoSlug: raw.tipo_nombre,
+      descripcion: raw.descripcion ?? null,
       activa: b(raw.activa),
       disponible: b(raw.disponible),
+      observaciones: raw.observaciones ?? null,
+      capacidad: raw.capacidad ?? null,
+      precioNoche: toNumberOrNull(raw.precio_noche),
    };
 }
 
@@ -46,4 +59,15 @@ export async function desactivarHabitacion(id: number) {
 
 export async function reactivarHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/reactivar`, {});
+}
+
+/**
+ * Actualiza SOLO las observaciones de la habitación (no toca el nombre).
+ * Si tu backend expone otra ruta, cambia la URL acá.
+ */
+export async function actualizarObservacionesHabitacion(
+   id: number,
+   observaciones: string | null
+) {
+   return api.patch(`/habitaciones/${id}/observaciones`, { observaciones });
 }

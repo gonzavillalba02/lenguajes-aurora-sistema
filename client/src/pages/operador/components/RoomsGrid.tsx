@@ -1,6 +1,6 @@
 // src/pages/operador/components/RoomsGrid.tsx  (y/o src/pages/admin/components/RoomsGrid.tsx)
 import { useMemo } from "react";
-import type { HabStatus } from "../../../types/types";
+import type { HabStatus } from "../../../types/habitacion.types";
 
 export type Room = { id: number; numero: number; status: HabStatus };
 

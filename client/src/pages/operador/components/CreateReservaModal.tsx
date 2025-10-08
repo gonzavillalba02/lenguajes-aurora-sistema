@@ -10,10 +10,8 @@ import {
    fetchHabitaciones,
    bloquearHabitacion,
 } from "../../../services/habitacion.service";
-import type {
-   HabitacionDomain,
-   CrearReservaByIdDTO,
-} from "../../../types/types";
+import type { HabitacionDomain } from "../../../types/habitacion.types";
+import type { CrearReservaByIdDTO } from "../../../types/reserva.types";
 
 export default function CreateReservaModal({
    open,

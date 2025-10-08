@@ -1,6 +1,4 @@
-import { User } from "lucide-react";
-
-export default function Topbar({ title }: { title: string }) {
+export default function Topbar({ title, rol }: { title: string; rol: string }) {
    return (
       <header
          className="
@@ -19,10 +17,7 @@ export default function Topbar({ title }: { title: string }) {
                   alt="Operador"
                />
                <span className="hidden sm:block text-white/80 text-sm">
-                  Operador
-               </span>
-               <span className="ml-2 inline-flex items-center gap-2 rounded-lg bg-button/90 text-white text-xs px-3 py-1 shadow">
-                  <User className="size-4" /> Sesión activa
+                  {rol}
                </span>
             </div>
          </div>

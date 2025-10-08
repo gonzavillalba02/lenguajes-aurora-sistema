@@ -11,7 +11,7 @@ api.interceptors.request.use((config) => {
    if (token) config.headers["Authorization"] = `Bearer ${token}`;
    return config;
 });
-// (opcional) manejar 401 → limpiar sesión
+// Manejar 401 que limpia sesión
 api.interceptors.response.use(
    (r) => r,
    (err) => {

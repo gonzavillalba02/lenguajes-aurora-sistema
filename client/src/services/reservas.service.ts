@@ -5,8 +5,7 @@ import type {
    ReservaEstadoDB,
    CrearReservaByIdDTO,
    CrearReservaResponse,
-   ID,
-} from "../types/types";
+} from "../types/reserva.types";
 
 // --- utils internas (sin dependencia de UI) ---
 function toDateSafe(s: string): Date {
@@ -99,16 +98,16 @@ export async function crearReserva(
 }
 
 // ---- STATE TRANSITIONS ----
-export async function pasarAPendientePago(id: ID) {
+export async function pasarAPendientePago(id: number | string) {
    await api.patch(`/reservas/${id}/pendiente-pago`);
 }
-export async function aprobarReserva(id: ID) {
+export async function aprobarReserva(id: number | string) {
    await api.patch(`/reservas/${id}/aprobar`);
 }
-export async function rechazarReserva(id: ID) {
+export async function rechazarReserva(id: number | string) {
    await api.patch(`/reservas/${id}/rechazar`);
 }
-export async function cancelarReserva(id: ID) {
+export async function cancelarReserva(id: number | string) {
    await api.patch(`/reservas/${id}/cancelar`);
 }
 

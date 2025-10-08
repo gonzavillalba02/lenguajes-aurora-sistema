@@ -1,3 +1,4 @@
+// src/pages/operador/Dashboard.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { RefreshCcw, Search } from "lucide-react";
 
@@ -7,49 +8,30 @@ import KpiCard from "./components/KpiCard";
 import ReservasTable from "./components/ReservasTable";
 import RoomsGrid from "./components/RoomsGrid";
 
-import CreateReservaModal from "./components/CreateReservaModal"; // NEW
-import ReservaDetailsModal from "./components/ReservaDetailsModal"; // NEW
+import CreateReservaModal from "./components/CreateReservaModal";
+import ReservaDetailsModal from "./components/ReservaDetailsModal";
+import HabitacionDetailsModal from "./components/HabitacionDetailsModal";
 
-import type {
-   HabStatus,
-   KpiSummary,
-   HabitacionDomain,
-} from "../../types/types";
 import {
    fetchReservasAll,
    fetchReservasPendientes,
    contarPorEstado,
 } from "../../services/reservas.service";
 import { fetchHabitaciones } from "../../services/habitacion.service";
-import HabitacionDetailsModal from "./components/HabitacionDetailsModal";
-// ========== helpers UI (solo mapping a los componentes actuales) ==========
-function estadoLabel(
-   e:
-      | "pendiente_verificacion"
-      | "pendiente_pago"
-      | "aprobada"
-      | "rechazada"
-      | "cancelada"
-) {
-   switch (e) {
-      case "pendiente_verificacion":
-         return "Pendiente";
-      case "pendiente_pago":
-         return "Pendiente de pago";
-      case "aprobada":
-         return "Aprobada";
-      case "rechazada":
-         return "Rechazada";
-      case "cancelada":
-         return "Cancelada";
-   }
-}
+import { ConsultasService } from "../../services/consultas.service";
 
-// ========== COMPONENTE ==========
+import type { ISODateString } from "../../types/core";
+import type { HabitacionDomain, HabStatus } from "../../types/habitacion.types";
+import type { ReservaDomain } from "../../types/reserva.types";
+import { RESERVA_LABEL } from "../../types/reserva.types";
+import type { KpiSummary } from "../../types/ui.types";
+import { isRoomOccupiedInRange } from "../../lib/dateRange";
+
+// ===================== Componente =====================
 export default function Dashboard() {
    const [loading, setLoading] = useState(true);
 
-   // Tabla reservas pendientes (como la espera tu ReservasTable)
+   // Pendientes para la tabla
    const [rows, setRows] = useState<
       Array<{
          id: number;
@@ -67,7 +49,11 @@ export default function Dashboard() {
       }>
    >([]);
 
-   // Mapa habitaciones
+   // Datos crudos para derivar UI
+   const [habsDomain, setHabsDomain] = useState<HabitacionDomain[]>([]);
+   const [reservas, setReservas] = useState<ReservaDomain[]>([]);
+
+   // Mapa (rooms para RoomsGrid)
    const [rooms, setRooms] = useState<
       Array<{ id: number; numero: number; status: HabStatus }>
    >([]);
@@ -80,24 +66,32 @@ export default function Dashboard() {
       rechazadas: 0,
       canceladas: 0,
       habitacionesDisponibles: 0,
+      consultasPendientes: 0, // 👈 nuevo campo
    });
 
-   // Search
+   // Búsqueda tabla pendientes
    const [q, setQ] = useState("");
 
-   // NEW: estado de modales
+   // Modales
    const [showCreate, setShowCreate] = useState(false);
    const [showDetail, setShowDetail] = useState(false);
    const [selectedId, setSelectedId] = useState<number | null>(null);
-   const [habsDomain, setHabsDomain] = useState<HabitacionDomain[]>([]);
 
    const [showRoomModal, setShowRoomModal] = useState(false);
    const [selectedRoom, setSelectedRoom] = useState<HabitacionDomain | null>(
       null
    );
 
-   // Filtro local para la tabla
-   const filtered = useMemo(() => {
+   // Filtro de fechas para el mapa de habitaciones
+   const todayISO = new Date().toISOString().slice(0, 10);
+   const tomorrowISO = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+   const [mapFrom, setMapFrom] = useState<ISODateString>(todayISO);
+   const [mapTo, setMapTo] = useState<ISODateString>(tomorrowISO);
+
+   // Tabla: filtro local por búsqueda
+   const filteredRows = useMemo(() => {
       const term = q.trim().toLowerCase();
       if (!term) return rows;
       return rows.filter((x) =>
@@ -107,22 +101,56 @@ export default function Dashboard() {
       );
    }, [rows, q]);
 
+   // Construir Rooms según rango seleccionado y reservas
+   const buildRoomsForRange = useCallback(
+      (
+         habs: HabitacionDomain[],
+         rs: ReservaDomain[],
+         fromISO: ISODateString,
+         toISO: ISODateString
+      ) => {
+         const next = habs.map((h) => {
+            if (!h.activa)
+               return {
+                  id: h.id,
+                  numero: h.numero,
+                  status: "Cerrada" as HabStatus,
+               };
+            const ocupada = isRoomOccupiedInRange(h.id, rs, fromISO, toISO);
+            return {
+               id: h.id,
+               numero: h.numero,
+               status: (ocupada ? "Ocupada" : "Libre") as HabStatus,
+            };
+         });
+         setRooms(next);
+      },
+      []
+   );
+
    const refresh = useCallback(async () => {
       setLoading(true);
       try {
-         const [allReservas, pendientes, habs] = await Promise.all([
-            fetchReservasAll(),
-            fetchReservasPendientes(6),
-            fetchHabitaciones(),
-         ]);
+         const [allReservas, pendientes, habs, consultasGrouped] =
+            await Promise.all([
+               fetchReservasAll(),
+               fetchReservasPendientes(6),
+               fetchHabitaciones(),
+               // 👇 trae { pendientes, respondidas, kpi }
+               ConsultasService.fetchGrouped(),
+            ]);
 
-         setHabsDomain(habs); // guardar domain completo
+         setHabsDomain(habs);
+         setReservas(allReservas);
 
-         // KPIs
+         // KPIs reservas / habitaciones
          const c = contarPorEstado(allReservas);
          const habitacionesDisponibles = habs.filter(
             (h) => h.activa && h.disponible
          ).length;
+
+         const consultasPendientes = consultasGrouped.kpi.pendientes ?? 0;
+
          setSummary({
             pendientesVerificacion: c.pendiente_verificacion ?? 0,
             pendientesPago: c.pendiente_pago ?? 0,
@@ -130,9 +158,10 @@ export default function Dashboard() {
             rechazadas: c.rechazada ?? 0,
             canceladas: c.cancelada ?? 0,
             habitacionesDisponibles,
+            consultasPendientes, // 👈 nuevo
          });
 
-         // Tabla
+         // Tabla (pendientes)
          setRows(
             pendientes.map((r) => ({
                id: r.id,
@@ -141,28 +170,26 @@ export default function Dashboard() {
                fechaFin: r.rango.hasta.toISOString(),
                habitacionNumero: r.habitacion.numero || r.habitacion.id,
                tipoHabitacion: r.habitacion.tipo,
-               status: estadoLabel(r.estado),
+               // ✅ Label desde el mapa centralizado
+               status: RESERVA_LABEL[r.estado] as
+                  | "Pendiente"
+                  | "Pendiente de pago"
+                  | "Aprobada"
+                  | "Rechazada"
+                  | "Cancelada",
             }))
          );
 
-         // Rooms VM
-         setRooms(
-            habs.map((h) => ({
-               id: h.id,
-               numero: h.numero,
-               status: !h.activa
-                  ? "Cerrada"
-                  : h.disponible
-                  ? "Libre"
-                  : "Ocupada",
-            }))
-         );
+         // Rooms en base a rango seleccionado
+         buildRoomsForRange(habs, allReservas, mapFrom, mapTo);
       } catch (err) {
          console.error("Error cargando dashboard:", err);
       } finally {
          setLoading(false);
       }
-   }, []);
+   }, [buildRoomsForRange, mapFrom, mapTo]);
+
+   // Primera carga
    useEffect(() => {
       let cancelled = false;
       (async () => {
@@ -173,6 +200,14 @@ export default function Dashboard() {
          cancelled = true;
       };
    }, [refresh]);
+
+   // Recalcular mapa cuando cambian fechas o datos crudos (sin llamar al back)
+   useEffect(() => {
+      if (!habsDomain.length || !reservas.length) return;
+      buildRoomsForRange(habsDomain, reservas, mapFrom, mapTo);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [mapFrom, mapTo, habsDomain, reservas]);
+
    return (
       <>
          <div className="space-y-6">
@@ -187,8 +222,8 @@ export default function Dashboard() {
                   active
                />
                <KpiCard
-                  label="Total de Consultas"
-                  value="—"
+                  label="Consultas Pendientes"
+                  value={summary.consultasPendientes} // 👈 antes era "—"
                   variant="consultas"
                />
                <KpiCard
@@ -200,8 +235,9 @@ export default function Dashboard() {
 
             {/* Paneles */}
             <div className="grid lg:grid-cols-2 gap-6">
+               {/* Reservas pendientes */}
                <section className="card overflow-hidden">
-                  <Header title="Reservas Pendientes ">
+                  <Header title="Reservas Pendientes">
                      <div className="flex items-center gap-2">
                         <div className="relative">
                            <Search className="size-4 absolute left-2 top-2.5 text-white/40" />
@@ -213,15 +249,15 @@ export default function Dashboard() {
                            />
                         </div>
 
-                        {/* NEW: Crear Reserva */}
                         <Button onClick={() => setShowCreate(true)}>
                            + Crear Reserva
                         </Button>
                      </div>
                   </Header>
+
                   <div className="px-4 pb-4">
                      <ReservasTable
-                        rows={filtered}
+                        rows={filteredRows}
                         loading={loading}
                         onRowClick={(id) => {
                            setSelectedId(id);
@@ -231,6 +267,7 @@ export default function Dashboard() {
                   </div>
                </section>
 
+               {/* Mapa de habitaciones */}
                <section className="card">
                   <Header title="Mapa de Habitaciones">
                      <div className="flex items-center gap-3">
@@ -241,26 +278,23 @@ export default function Dashboard() {
                               setLoading(true);
                               try {
                                  const habs = await fetchHabitaciones();
-                                 setRooms(
-                                    habs.map((h) => ({
-                                       id: h.id,
-                                       numero: h.numero,
-                                       status: !h.activa
-                                          ? "Cerrada"
-                                          : h.disponible
-                                          ? "Libre"
-                                          : "Ocupada",
-                                    }))
+                                 setHabsDomain(habs);
+                                 buildRoomsForRange(
+                                    habs,
+                                    reservas,
+                                    mapFrom,
+                                    mapTo
                                  );
                               } finally {
                                  setLoading(false);
                               }
                            }}
                         >
-                           <RefreshCcw className="size-4" /> Actualizar
+                           <RefreshCcw className="size-4" />
                         </Button>
                      </div>
                   </Header>
+
                   <div className="px-4 pb-5">
                      {loading ? (
                         <div className="grid grid-cols-8 gap-2 p-2">
@@ -282,11 +316,54 @@ export default function Dashboard() {
                            }}
                         />
                      )}
-                     <div className="mt-4 text-center text-xs text-white/50">
-                        {new Date().toLocaleDateString()} -{" "}
-                        {new Date(
-                           Date.now() + 1000 * 60 * 60 * 24 * 25
-                        ).toLocaleDateString()}
+
+                     {/*  Filtro de fechas DEBAJO del grid */}
+                     <div className="mt-4 flex flex-col items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                           <div className="flex items-center gap-1">
+                              <span className="text-white/60">Desde</span>
+                              <input
+                                 type="date"
+                                 className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs"
+                                 value={mapFrom}
+                                 onChange={(e) =>
+                                    setMapFrom(e.target.value as ISODateString)
+                                 }
+                              />
+                           </div>
+                           <div className="flex items-center gap-1">
+                              <span className="text-white/60">Hasta</span>
+                              <input
+                                 type="date"
+                                 className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs"
+                                 value={mapTo}
+                                 onChange={(e) =>
+                                    setMapTo(e.target.value as ISODateString)
+                                 }
+                              />
+                           </div>
+                           <Button
+                              variant="ghost"
+                              onClick={() => {
+                                 const t = new Date();
+                                 const n = new Date(
+                                    Date.now() + 24 * 60 * 60 * 1000
+                                 );
+                                 setMapFrom(
+                                    t
+                                       .toISOString()
+                                       .slice(0, 10) as ISODateString
+                                 );
+                                 setMapTo(
+                                    n
+                                       .toISOString()
+                                       .slice(0, 10) as ISODateString
+                                 );
+                              }}
+                           >
+                              Hoy
+                           </Button>
+                        </div>{" "}
                      </div>
                   </div>
                </section>
@@ -306,17 +383,20 @@ export default function Dashboard() {
             onClose={() => setShowDetail(false)}
             onChanged={refresh}
          />
+
          <HabitacionDetailsModal
             open={showRoomModal}
             room={selectedRoom}
             onClose={() => setShowRoomModal(false)}
             onChanged={refresh}
+            range={{ from: mapFrom, to: mapTo }}
+            reservas={reservas}
          />
       </>
    );
 }
 
-// Encabezado de paneles
+// =============== Subcomponentes locales ===============
 function Header({
    title,
    children,
@@ -332,7 +412,6 @@ function Header({
    );
 }
 
-// Puntos de la leyenda
 function Legend() {
    return (
       <div className="hidden sm:flex items-center gap-3 text-xs">

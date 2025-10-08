@@ -40,13 +40,18 @@ export const getHabitaciones = async (req: Request, res: Response) => {
    try {
       const [rows]: any = await pool.query(
          `SELECT h.id, h.nombre, h.disponible, h.activa, h.observaciones,
-              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche
+              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche, t.descripcion
        FROM habitacion h
        INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
        ORDER BY h.id ASC`
       );
 
-      res.json(rows);
+      const enriched = rows.map((r: any) => ({
+         ...r,
+         tipo_label: toTitleLabel(r.tipo_nombre),
+      }));
+
+      res.json(enriched);
    } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Error obteniendo habitaciones" });
@@ -60,7 +65,7 @@ export const getHabitacionById = async (req: Request, res: Response) => {
    try {
       const [rows]: any = await pool.query(
          `SELECT h.id, h.nombre, h.disponible, h.activa, h.observaciones,
-              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche
+              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche, t.descripcion
        FROM habitacion h
        INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
        WHERE h.id = ?`,
@@ -71,7 +76,9 @@ export const getHabitacionById = async (req: Request, res: Response) => {
          return res.status(404).json({ message: "Habitación no encontrada" });
       }
 
-      res.json(rows[0]);
+      const r = rows[0];
+      const enriched = { ...r, tipo_label: toTitleLabel(r.tipo_nombre) };
+      res.json(enriched);
    } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Error obteniendo habitación" });
@@ -220,3 +227,53 @@ export const actualizarHabitacion = async (req: Request, res: Response) => {
       res.status(500).json({ message: "Error actualizando habitación" });
    }
 };
+
+export const actualizarObservacionesHabitacion = async (
+   req: Request,
+   res: Response
+) => {
+   const { id } = req.params;
+   const { observaciones } = req.body;
+
+   try {
+      const [rows]: any = await pool.query(
+         "SELECT id FROM habitacion WHERE id = ?",
+         [id]
+      );
+      if (rows.length === 0) {
+         return res.status(404).json({ message: "Habitación no encontrada" });
+      }
+
+      await pool.query("UPDATE habitacion SET observaciones = ? WHERE id = ?", [
+         observaciones ?? null,
+         id,
+      ]);
+
+      // Devolver el registro actualizado (útil para refrescar)
+      const [rows2]: any = await pool.query(
+         `SELECT h.id, h.nombre, h.disponible, h.activa, h.observaciones,
+              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche, t.descripcion AS tipo_descripcion
+       FROM habitacion h
+       INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
+       WHERE h.id = ?`,
+         [id]
+      );
+
+      const r = rows2[0];
+      const enriched = { ...r, tipo_label: toTitleLabel(r.tipo_nombre) };
+
+      res.json({ message: "Observaciones actualizadas", habitacion: enriched });
+   } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Error actualizando observaciones" });
+   }
+};
+//Funcion para pasar de "parejas_estandar" a "Parejas Estándar"
+export function toTitleLabel(slug: string | null | undefined) {
+   if (!slug) return "";
+   return slug
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+}
