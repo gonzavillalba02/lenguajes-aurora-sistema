@@ -158,7 +158,7 @@ export default function Dashboard() {
             rechazadas: c.rechazada ?? 0,
             canceladas: c.cancelada ?? 0,
             habitacionesDisponibles,
-            consultasPendientes, // 👈 nuevo
+            consultasPendientes,
          });
 
          // Tabla (pendientes)
@@ -170,7 +170,6 @@ export default function Dashboard() {
                fechaFin: r.rango.hasta.toISOString(),
                habitacionNumero: r.habitacion.numero || r.habitacion.id,
                tipoHabitacion: r.habitacion.tipo,
-               // ✅ Label desde el mapa centralizado
                status: RESERVA_LABEL[r.estado] as
                   | "Pendiente"
                   | "Pendiente de pago"

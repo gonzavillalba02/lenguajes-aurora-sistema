@@ -8,13 +8,11 @@ export function StatusBadge({
    const map: Record<string, string> =
       tipo === "reserva"
          ? {
-              Pendiente:
-                 "bg-estado-pendienteReserva/20 text-estado-pendienteReserva",
-              "Pendiente de pago":
-                 "bg-estado-pendientePago/20 text-estado-pendientePago",
-              Aprobada: "bg-estado-aprobada/20 text-estado-aprobada",
-              Rechazada: "bg-estado-rechazada/20 text-estado-rechazada",
-              Cancelada: "bg-estado-cancelada/20 text-estado-cancelada",
+              Pendiente: "bg-estado-pendienteReserva/50 text-white",
+              "Pendiente de pago": "bg-estado-pendientePago/40 text-white",
+              Aprobada: "bg-estado-aprobada/50 text-white",
+              Rechazada: "bg-estado-rechazada/10 text-white",
+              Cancelada: "bg-estado-cancelada/20 text-white",
            }
          : {
               Libre: "bg-habitacion-libre/20 text-habitacion-libre",

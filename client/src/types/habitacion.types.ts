@@ -11,14 +11,13 @@ export type HabStatus = (typeof HAB_STATUS)[keyof typeof HAB_STATUS];
 /** ===== RAW tal cual backend ===== */
 export type HabitacionRaw = {
    id: number;
-   nombre: string; // p.ej. "H101"
+   nombre: string;
    disponible: Booleanish;
    activa: Booleanish;
    observaciones?: string | null;
    tipo_id: number;
-   tipo_nombre: string; // slug del tipo (p.ej. "parejas_estandar")
-   descripcion?: string | null; // descripción del tipo (si el back ya la trae)
-   tipo_label?: string; // label bonita del tipo (si el back ya la trae)
+   descripcion?: string | null;
+   tipo_nombre?: string;
    capacidad?: number | null;
    precio_noche?: string | number | null;
 };
@@ -26,10 +25,9 @@ export type HabitacionRaw = {
 /** ===== DOMAIN normalizado ===== */
 export type HabitacionDomain = {
    id: number;
-   nombre: string; // "H101"
-   numero: number; // 101 (derivado)
-   tipo: string; // label amigable (preferir label si existe)
-   tipoSlug: string; // slug
+   nombre: string;
+   numero: number;
+   tipo: string;
    descripcion?: string | null;
    activa: boolean;
    disponible: boolean;

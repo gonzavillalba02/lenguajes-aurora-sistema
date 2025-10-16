@@ -29,7 +29,7 @@ export default function ConfirmDialog({
 
    return (
       <div
-         className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-4"
+         className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-4 "
          onMouseDown={onClose}
          onKeyDown={onKey}
       >
@@ -41,7 +41,10 @@ export default function ConfirmDialog({
             aria-labelledby="confirm-title"
             aria-describedby="confirm-desc"
          >
-            <h3 id="confirm-title" className="text-lg font-semibold mb-2">
+            <h3
+               id="confirm-title"
+               className="text-lg font-semibold mb-2 text-white text-center"
+            >
                {title}
             </h3>
             <p id="confirm-desc" className="text-white/80 mb-4">
@@ -49,7 +52,7 @@ export default function ConfirmDialog({
             </p>
             <div className="flex justify-end gap-2">
                <button
-                  className="px-3 py-2 rounded bg-white/10 hover:bg-white/15"
+                  className="px-3 py-2 rounded text-white bg-white/10 hover:bg-white/15"
                   onClick={onClose}
                   disabled={loading}
                >

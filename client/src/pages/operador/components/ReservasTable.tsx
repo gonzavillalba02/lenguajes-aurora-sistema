@@ -1,6 +1,5 @@
 import { StatusBadge } from "../../../components/StatusBadge";
 import { Eye } from "lucide-react";
-
 type Row = {
    id: number;
    cliente: string;
@@ -69,7 +68,13 @@ export default function ReservasTable({
                         <td className="px-3 py-2 font-semibold">
                            {r.habitacionNumero}
                         </td>
-                        <td className="px-3 py-2">{r.tipoHabitacion || "—"}</td>
+                        {/* ⬇️ aquí la conversión solo para la celda */}
+                        <td
+                           className="px-3 py-2 whitespace-nowrap"
+                           title={humanizeTipo(r.tipoHabitacion)}
+                        >
+                           {humanizeTipo(r.tipoHabitacion)}
+                        </td>
                         <td className="px-3 py-2">
                            <StatusBadge tipo="reserva" value={r.status} />
                         </td>
@@ -115,4 +120,19 @@ function formatRange(fromISO: string, toISO: string) {
          year: "2-digit",
       });
    return `${f(from)} - ${f(to)}`;
+}
+/* ==== helper local: slug -> label legible ==== */
+function humanizeTipo(v?: string | null) {
+   if (!v) return "—";
+   // si viene en formato slug: parejas_estandar -> Parejas Estándar
+   if (v.includes("_")) {
+      const label = v
+         .split("_")
+         .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+         .join(" ");
+      // corrección común: suit -> Suite
+      return label.replace(/\bSuit\b/gi, "Suite");
+   }
+   // si ya viene legible, solo corregimos "suit" -> "Suite"
+   return v.replace(/\bSuit\b/gi, "Suite");
 }

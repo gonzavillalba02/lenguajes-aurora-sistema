@@ -1,5 +1,9 @@
 // src/pages/operador/components/HabitacionDetailsModal.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
+import AnimacionDetails from "../../../components/AnimacionDetails";
+import ConfirmDialog from "../../../components/ConfirmDialog";
+import Toast from "../../../components/Toast";
+
 import type { HabitacionDomain } from "../../../types/habitacion.types";
 import type { ISODateString } from "../../../types/core";
 import type { ReservaDomain } from "../../../types/reserva.types";
@@ -9,9 +13,6 @@ import {
    reactivarHabitacion,
    actualizarObservacionesHabitacion,
 } from "../../../services/habitacion.service";
-
-import ConfirmDialog from "../../../components/ConfirmDialog";
-import Toast from "../../../components/Toast";
 
 import {
    reservasSolapadasDeHab,
@@ -54,36 +55,6 @@ export default function HabitacionDetailsModal({
    const [confirm, setConfirm] = useState<ConfirmState>(null);
    const [loading, setLoading] = useState(false);
    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-   // ====== ANIMACIÓN (open/close) ======
-   const [visible, setVisible] = useState(false); // controla la transición
-   const ANIM_MS = 180;
-
-   // cuando open cambia a true, mostramos y bloqueamos scroll
-   useEffect(() => {
-      if (!open) return;
-      setVisible(true);
-
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-         document.body.style.overflow = prev;
-      };
-   }, [open]);
-
-   // cerrar con animación y luego onClose real
-   const handleClose = useCallback(() => {
-      setVisible(false);
-      setTimeout(onClose, ANIM_MS);
-   }, [onClose]);
-
-   // ESC cierra modal
-   useEffect(() => {
-      if (!open) return;
-      const onKey = (e: KeyboardEvent) => e.key === "Escape" && handleClose();
-      window.addEventListener("keydown", onKey);
-      return () => window.removeEventListener("keydown", onKey);
-   }, [open, handleClose]);
 
    // Toast
    const [toast, setToast] = useState<{
@@ -147,7 +118,7 @@ export default function HabitacionDetailsModal({
          : { label: "Libre", color: "bg-habitacion-libre" };
    }, [room, reservas, fromISO, toISO]);
 
-   // Descripción tipo
+   // Descripción tipo (del tipo de habitación)
    const descripcionTipo = useMemo(() => {
       if (!room) return "—";
       const d = (room.descripcion || "").trim();
@@ -167,13 +138,13 @@ export default function HabitacionDetailsModal({
          setConfirm(null);
          onChanged?.();
          setToast({ open: true, type: "success", message: confirm.successMsg });
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
          setErrorMsg(e?.response?.data?.message || "Ocurrió un error.");
       } finally {
          setLoading(false);
       }
    }, [confirm, onChanged]);
-
    // Guardar observaciones
    const saveObservaciones = useCallback(async () => {
       if (!room) return;
@@ -193,6 +164,7 @@ export default function HabitacionDetailsModal({
             type: "success",
             message: "Observaciones guardadas",
          });
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
          setErrorMsg(
             e?.response?.data?.message ||
@@ -206,217 +178,187 @@ export default function HabitacionDetailsModal({
    if (!open || !room) return null;
 
    return (
-      <div
-         className={`
-        fixed inset-0 z-[90] grid place-items-center p-4 
-        bg-black/40 backdrop-blur-sm 
-        transition-opacity duration-[${ANIM_MS}ms] 
-        ${visible ? "opacity-100" : "opacity-0"}
-      `}
-         onMouseDown={handleClose} // click en backdrop cierra con animación
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="habitacion-title"
-      >
-         <div
-            className={`
-          w-full max-w-xl rounded-2xl bg-bg p-5 shadow-lg ring-1 ring-white/10 relative 
-          transition-all duration-[${ANIM_MS}ms] ease-out
-          ${
-             visible
-                ? "opacity-100 translate-y-0 scale-100"
-                : "opacity-0 translate-y-2 scale-[0.98]"
-          }
-        `}
-            onMouseDown={(e) => e.stopPropagation()} // evitar cierre por click dentro
-         >
-            {/* Header */}
-            <div className="mb-4 flex items-center justify-between gap-3">
-               <h2 id="habitacion-title" className="text-xl font-bold">
+      <AnimacionDetails
+         open={open}
+         onClose={onClose}
+         title={
+            <div className="flex items-center gap-3">
+               <span className="text-white">
                   Habitación {room.numero || room.nombre}
-               </h2>
+               </span>
                <span
-                  className={`px-3 py-1 rounded-full text-sm font-semibold text-white/90 ${estado.color}`}
+                  className={`px-3 py-1 rounded-full text-sm font-semibold text-white ${estado.color}`}
                >
                   {estado.label}
                </span>
             </div>
+         }
+         maxWidth="xl"
+         showCloseButton
+      >
+         {/* Info principal */}
+         <div className="grid grid-cols-2 gap-y-3 text-sm">
+            <div className="text-white/70">Tipo</div>
+            <div className="text-right text-white">{room.tipo}</div>
 
-            {/* Info principal */}
-            <div className="grid grid-cols-2 gap-y-2 text-sm">
-               <div className="text-white/70">Tipo</div>
-               <div className="text-right">{room.tipo}</div>
+            <div className="text-white/70">Descripción</div>
+            <div className="text-right text-white">{descripcionTipo}</div>
 
-               <div className="text-white/70">Descripción</div>
-               <div className="text-right">{descripcionTipo}</div>
-
-               <div className="text-white/70">Características</div>
-               <div className="text-right">
-                  <div className="flex items-center justify-between gap-4">
-                     <span>Capacidad: {capacidad}</span>
-                     <span>Precio: {precio}</span>
-                  </div>
+            <div className="text-white/70">Características</div>
+            <div className="text-right text-white">
+               <div className="flex items-center justify-between gap-6">
+                  <span>Capacidad: {capacidad}</span>
+                  <span>Precio: {precio}</span>
                </div>
             </div>
+         </div>
 
-            {/* Rango + Reservas */}
-            <div className="mt-4 rounded-xl border border-white/10 bg-white/[.04] p-3 text-sm">
-               <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-white/70">Rango seleccionado</span>
-                  <div className="flex items-center gap-2">
-                     <span className="text-white">
-                        ({fmt(dFrom)} → {fmt(dTo)})
-                     </span>
-                  </div>
-               </div>
-
-               <div className="mt-3">
-                  <div className="mb-1 text-white/70">Reservas</div>
-                  {solapadas.length === 0 ? (
-                     <div className="text-white/60">
-                        No hay reservas en este rango.
-                     </div>
-                  ) : (
-                     <ul className="max-h-52 space-y-2 overflow-y-auto pr-1">
-                        {solapadas.map((r) => (
-                           <li
-                              key={r.id}
-                              className="rounded-lg border border-white/10 bg-white/[.06] px-3 py-2"
-                           >
-                              <div className="flex items-center justify-between">
-                                 <div className="text-sm font-medium">
-                                    {r.cliente.apellido} {r.cliente.nombre}
-                                 </div>
-                                 <div className="text-xs text-red-500">
-                                    {fmt(r.rango.desde)} → {fmt(r.rango.hasta)}
-                                 </div>
-                              </div>
-                              <div className="mt-0.5 text-xs">
-                                 Estado:{" "}
-                                 <span className="opacity-90">{r.estado}</span>
-                              </div>
-                           </li>
-                        ))}
-                     </ul>
-                  )}
-               </div>
+         {/* Rango + Reservas */}
+         <div className="mt-5 rounded-xl border border-white/10 bg-white/[.05] p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+               <span className="text-white/70">Rango seleccionado</span>
+               <span className="text-white">
+                  ({fmt(dFrom)} → {fmt(dTo)})
+               </span>
             </div>
 
-            {/* Observaciones */}
-            <div className="mt-5">
-               <div className="flex items-center justify-between">
-                  <label htmlFor="obs" className="text-sm text-white/70">
-                     Observaciones
-                  </label>
+            <div className="mt-3">
+               <div className="mb-1 text-white/70">Reservas</div>
+               {solapadas.length === 0 ? (
+                  <div className="text-white/80">
+                     No hay reservas en este rango.
+                  </div>
+               ) : (
+                  <ul className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                     {solapadas.map((r) => (
+                        <li
+                           key={r.id}
+                           className="rounded-lg border border-white/12 bg-white/[.06] px-3 py-2"
+                        >
+                           <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium text-white">
+                                 {r.cliente.apellido} {r.cliente.nombre}
+                              </div>
+                              <div className="text-xs text-red-400">
+                                 {fmt(r.rango.desde)} → {fmt(r.rango.hasta)}
+                              </div>
+                           </div>
+                           <div className="mt-0.5 text-xs text-white/80">
+                              Estado:{" "}
+                              <span className="opacity-90">{r.estado}</span>
+                           </div>
+                        </li>
+                     ))}
+                  </ul>
+               )}
+            </div>
+         </div>
 
-                  {!isEditingObs ? (
-                     <button
-                        className="rounded-lg bg-white/10 px-3 py-1.5 text-sm hover:bg-white/15"
-                        onClick={() => setIsEditingObs(true)}
-                     >
-                        Editar
-                     </button>
-                  ) : null}
-               </div>
+         {/* Observaciones */}
+         <div className="mt-5">
+            <div className="flex items-center justify-between">
+               <label htmlFor="obs" className="text-sm text-white/70">
+                  Observaciones
+               </label>
 
                {!isEditingObs ? (
-                  <div className="mt-2 min-h-16 rounded-xl border border-white/10 bg-white/[.06] px-3 py-3 text-sm">
-                     {obsDraft?.trim() ? (
-                        <p className="whitespace-pre-wrap">{obsDraft}</p>
-                     ) : (
-                        <span className="text-white/50">
-                           Sin observaciones.
+                  <button
+                     className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/15"
+                     onClick={() => setIsEditingObs(true)}
+                  >
+                     Editar
+                  </button>
+               ) : null}
+            </div>
+
+            {!isEditingObs ? (
+               <div className="mt-2 min-h-16 rounded-xl border border-white/12 bg-white/[.06] px-3 py-3 text-sm text-white">
+                  {obsDraft?.trim() ? (
+                     <p className="whitespace-pre-wrap">{obsDraft}</p>
+                  ) : (
+                     <span className="text-white/60">Sin observaciones.</span>
+                  )}
+               </div>
+            ) : (
+               <div className="mt-2">
+                  <textarea
+                     id="obs"
+                     className="h-28 w-full rounded-xl border border-white/12 bg-white/[.08] px-3 py-2 text-sm text-white placeholder-white/50 outline-none focus:border-yellow-500/60"
+                     placeholder="Añadí notas internas, estado, detalles relevantes…"
+                     value={obsDraft}
+                     onChange={(e) => setObsDraft(e.target.value)}
+                     disabled={loading}
+                  />
+                  <div className="mt-2 flex items-center gap-2">
+                     <button
+                        className="rounded-lg bg-button px-3 py-2 text-white hover:bg-button/85 disabled:opacity-60"
+                        onClick={saveObservaciones}
+                        disabled={loading}
+                     >
+                        Guardar
+                     </button>
+                     <button
+                        className="rounded-lg bg-white/10 px-3 py-2 text-white hover:bg-white/15 disabled:opacity-60"
+                        onClick={() => {
+                           setIsEditingObs(false);
+                           setObsDraft(room?.observaciones ?? "");
+                        }}
+                        disabled={loading}
+                     >
+                        Cancelar
+                     </button>
+                     {savedOk && (
+                        <span className="text-sm text-green-400">
+                           Guardado ✅
                         </span>
                      )}
                   </div>
-               ) : (
-                  <div className="mt-2">
-                     <textarea
-                        id="obs"
-                        className="h-28 w-full rounded-xl border border-white/10 bg-white/[.08] px-3 py-2 text-sm outline-none focus:border-yellow-500/60"
-                        placeholder="Añadí notas internas, estado, detalles relevantes…"
-                        value={obsDraft}
-                        onChange={(e) => setObsDraft(e.target.value)}
-                        disabled={loading}
-                     />
-                     <div className="mt-2 flex items-center gap-2">
-                        <button
-                           className="rounded-lg bg-button px-3 py-2 text-white hover:bg-button/85 disabled:opacity-60"
-                           onClick={saveObservaciones}
-                           disabled={loading}
-                        >
-                           Guardar
-                        </button>
-                        <button
-                           className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15 disabled:opacity-60"
-                           onClick={() => {
-                              setIsEditingObs(false);
-                              setObsDraft(room?.observaciones ?? "");
-                           }}
-                           disabled={loading}
-                        >
-                           Cancelar
-                        </button>
-                        {savedOk && (
-                           <span className="text-sm text-green-400">
-                              Guardado ✅
-                           </span>
-                        )}
-                     </div>
-                  </div>
-               )}
-            </div>
-
-            {/* Errores */}
-            {errorMsg && (
-               <div className="mt-4 rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-sm">
-                  {errorMsg}
                </div>
             )}
+         </div>
 
-            {/* Acciones */}
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
-               {room.activa ? (
-                  <button
-                     className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-600/85 disabled:opacity-60"
-                     disabled={loading}
-                     onClick={() =>
-                        setConfirm({
-                           title: "Cerrar habitación",
-                           message:
-                              "¿Seguro querés cerrar esta habitación? No podrá ser utilizada hasta reabrirla.",
-                           successMsg: "Habitación cerrada",
-                           action: () => desactivarHabitacion(room.id),
-                        })
-                     }
-                  >
-                     Cerrar habitación
-                  </button>
-               ) : (
-                  <button
-                     className="rounded-lg bg-button px-4 py-2 text-white hover:bg-button/85 disabled:opacity-60"
-                     disabled={loading}
-                     onClick={() =>
-                        setConfirm({
-                           title: "Abrir habitación",
-                           message:
-                              "¿Querés reabrir esta habitación? Volverá a estar operativa.",
-                           successMsg: "Habitación abierta",
-                           action: () => reactivarHabitacion(room.id),
-                        })
-                     }
-                  >
-                     Abrir habitación
-                  </button>
-               )}
-
-               <button
-                  className="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15"
-                  onClick={handleClose}
-               >
-                  Salir
-               </button>
+         {/* Errores */}
+         {errorMsg && (
+            <div className="mt-4 rounded-xl border border-red-500/50 bg-red-500/10 p-3 text-sm text-white">
+               {errorMsg}
             </div>
+         )}
+
+         {/* Acciones */}
+         <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+            {room.activa ? (
+               <button
+                  className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-600/85 disabled:opacity-60"
+                  disabled={loading}
+                  onClick={() =>
+                     setConfirm({
+                        title: "Cerrar habitación",
+                        message:
+                           "¿Seguro querés cerrar esta habitación? No podrá ser utilizada hasta reabrirla.",
+                        successMsg: "Habitación cerrada",
+                        action: () => desactivarHabitacion(room.id),
+                     })
+                  }
+               >
+                  Cerrar habitación
+               </button>
+            ) : (
+               <button
+                  className="rounded-lg bg-button px-4 py-2 text-white hover:bg-button/85 disabled:opacity-60"
+                  disabled={loading}
+                  onClick={() =>
+                     setConfirm({
+                        title: "Abrir habitación",
+                        message:
+                           "¿Querés reabrir esta habitación? Volverá a estar operativa.",
+                        successMsg: "Habitación abierta",
+                        action: () => reactivarHabitacion(room.id),
+                     })
+                  }
+               >
+                  Abrir habitación
+               </button>
+            )}
          </div>
 
          {/* Confirmación */}
@@ -440,6 +382,6 @@ export default function HabitacionDetailsModal({
                setToast({ open: false, message: "", type: "success" })
             }
          />
-      </div>
+      </AnimacionDetails>
    );
 }

@@ -1,7 +1,8 @@
 // src/pages/operador/components/ConsultaDetailsModal.tsx
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import AnimacionDetails from "../../../components/AnimacionDetails";
 import type { ConsultaDetailVM } from "../../../types/consulta.types";
+import emailjs from "@emailjs/browser";
 
 type Props = {
    open: boolean;
@@ -9,7 +10,11 @@ type Props = {
    consultaId?: number | null;
    load: (id: number) => Promise<ConsultaDetailVM>;
    onSend: (id: number, respuesta: string) => Promise<void>;
+   /** Email del operador para Reply-To (opcional pero recomendado) */
+   replyTo?: string;
 };
+
+const MAX_FILES = 5;
 
 export default function ConsultaDetailsModal({
    open,
@@ -17,11 +22,23 @@ export default function ConsultaDetailsModal({
    consultaId,
    load,
    onSend,
+   replyTo = "",
 }: Props) {
    const [loading, setLoading] = useState(false);
    const [sending, setSending] = useState(false);
    const [data, setData] = useState<ConsultaDetailVM | null>(null);
    const [respuesta, setRespuesta] = useState("");
+
+   // EmailJS
+   const formRef = useRef<HTMLFormElement>(null);
+   const filesInputRef = useRef<HTMLInputElement>(null);
+
+   // Adjuntos (UI)
+   const [files, setFiles] = useState<File[]>([]);
+   const totalSizeMB = useMemo(
+      () => files.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024),
+      [files]
+   );
 
    useEffect(() => {
       if (!open || !consultaId) return;
@@ -31,131 +48,242 @@ export default function ConsultaDetailsModal({
             const d = await load(consultaId);
             setData(d);
             setRespuesta(d.respuesta ?? "");
+            setFiles([]);
+            // Sincronizar valores iniciales al form oculto
+            syncHidden({
+               to_email: d.clienteEmail ?? "",
+               subject: "Aurora Hotel - Consulta Respondida",
+               reply_to: replyTo,
+               name: d.clienteNombre ?? "",
+               message: d.respuesta ?? "",
+            });
          } finally {
             setLoading(false);
          }
       })();
-   }, [open, consultaId, load]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [open, consultaId]);
 
    if (!open) return null;
 
    const isPendiente = data?.estadoLabel === "Pendiente";
+   const subject = "Aurora Hotel - Consulta Respondida";
+   const toEmail = data?.clienteEmail ?? "";
+   const clientName = data?.clienteNombre ?? "";
 
+   // ===== Helpers para sincronizar el <form> =====
+   function setInput(name: string, value: string) {
+      const el = formRef.current?.querySelector(`[name="${name}"]`) as
+         | HTMLInputElement
+         | HTMLTextAreaElement
+         | null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (el) (el as any).value = value;
+   }
+   function syncHidden(values: {
+      to_email?: string;
+      subject?: string;
+      reply_to?: string;
+      name?: string;
+      message?: string;
+   }) {
+      if (values.to_email !== undefined) setInput("to_email", values.to_email);
+      if (values.subject !== undefined) setInput("subject", values.subject);
+      if (values.reply_to !== undefined) setInput("reply_to", values.reply_to);
+      if (values.name !== undefined) setInput("name", values.name);
+      if (values.message !== undefined) setInput("message", values.message);
+   }
+
+   // ===== Envío =====
    async function handleSend() {
       if (!data) return;
-      if (!respuesta.trim()) return alert("Escribí una respuesta.");
-      setSending(true);
+
+      const body = respuesta.trim();
+      if (!toEmail) return alert("Falta el email del cliente.");
+      if (!body) return alert("Escribí una respuesta.");
+      if (files.length > MAX_FILES)
+         return alert(`Máximo ${MAX_FILES} archivos.`);
+      if (totalSizeMB > 18)
+         return alert("Adjuntos demasiado pesados (máx ~18MB totales).");
+
       try {
-         await onSend(data.id, respuesta.trim());
-         onClose(); // cerramos y la lista se actualizará desde el padre
-      } catch (e) {
+         setSending(true);
+
+         // refrescar campos en form
+         syncHidden({
+            to_email: toEmail,
+            subject,
+            reply_to: replyTo,
+            name: clientName,
+            message: body,
+         });
+
+         // EmailJS sendForm
+         const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+         const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+         const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+         if (!formRef.current) throw new Error("Formulario no listo");
+         await emailjs.sendForm(SERVICE_ID, TEMPLATE_ID, formRef.current, {
+            publicKey: PUBLIC_KEY,
+         });
+
+         // Persistir en tu sistema
+         await onSend(data.id, body);
+
+         onClose();
+      } catch (err) {
+         console.error(err);
          alert("No se pudo enviar la respuesta.");
       } finally {
          setSending(false);
       }
    }
 
+   // ===== Header / Footer =====
+   const header = (
+      <div className="flex items-center gap-3">
+         <span className="text-white">Consulta</span>
+         {data ? (
+            <span
+               className={[
+                  "px-3 py-1 rounded-full text-sm font-semibold text-white",
+                  isPendiente
+                     ? "bg-estado-pendienteReserva"
+                     : "bg-estado-aprobada",
+               ].join(" ")}
+            >
+               {data.estadoLabel}
+            </span>
+         ) : null}
+      </div>
+   );
+
+   const footer = (
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+         {data && isPendiente ? (
+            <button
+               className="rounded-lg bg-button px-4 py-2 text-white hover:bg-button/85 disabled:opacity-60"
+               onClick={handleSend}
+               disabled={sending}
+            >
+               {sending ? "Enviando…" : "Enviar Respuesta"}
+            </button>
+         ) : null}
+      </div>
+   );
+
    return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3">
-         <div className="w-full max-w-xl rounded-[var(--radius-xl2)] bg-bg2 border border-white/10 ring-1 ring-inset ring-white/10 shadow-[var(--shadow-card)]">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-               <div className="flex items-center gap-3">
-                  <h3 className="text-white text-lg font-semibold">Consulta</h3>
-                  {data && (
-                     <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                           isPendiente
-                              ? "bg-estado-pendienteReserva text-white"
-                              : "bg-estado-aprobada text-white"
-                        }`}
-                     >
-                        {data.estadoLabel}
-                     </span>
-                  )}
+      <AnimacionDetails
+         open={open}
+         onClose={onClose}
+         title={header}
+         maxWidth="xl"
+         showCloseButton
+         blur
+         escToClose
+         closeOnBackdrop
+         durationMs={180}
+      >
+         {/* FORM oculto que mapea 1:1 con tu plantilla EmailJS */}
+         <form ref={formRef} className="hidden">
+            {/* === Campos que usa tu template === */}
+            <input name="to_email" defaultValue={toEmail} />
+            <input name="subject" defaultValue={subject} />
+            <input name="reply_to" defaultValue={replyTo} />
+            <input name="name" defaultValue={clientName} />
+            <textarea name="message" defaultValue={respuesta} />
+            {/* === Adjuntos === */}
+            <input
+               ref={filesInputRef}
+               name="attachments"
+               type="file"
+               multiple
+               accept=".pdf,image/png,image/jpeg"
+            />
+         </form>
+
+         {/* UI visible */}
+         {loading || !data ? (
+            <div className="h-40 animate-pulse rounded-lg bg-white/5" />
+         ) : (
+            <div className="space-y-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <Field label="Cliente" value={data.clienteNombre} />
+                  <Field label="Email" value={data.clienteEmail} />
+                  <Field
+                     label="Asunto"
+                     value={data.asunto}
+                     className="md:col-span-2"
+                  />
                </div>
-               <button
-                  onClick={onClose}
-                  className="p-1 rounded hover:bg-white/10 text-white/70"
-               >
-                  <X size={18} />
-               </button>
-            </div>
 
-            {/* Body */}
-            <div className="px-5 py-4">
-               {loading || !data ? (
-                  <div className="h-40 animate-pulse rounded-lg bg-white/5" />
-               ) : (
-                  <div className="space-y-3 text-sm">
-                     <div className="flex flex-wrap gap-x-6 gap-y-1 text-white/80">
-                        <p>
-                           <span className="text-white/60">Cliente:</span>{" "}
-                           {data.clienteNombre}
-                        </p>
-                        <p>
-                           <span className="text-white/60">Email:</span>{" "}
-                           {data.clienteEmail}
-                        </p>
-                     </div>
+               <div>
+                  <div className="text-sm text-white/60 mb-1">
+                     Mensaje Cliente
+                  </div>
+                  <div className="text-white/80 text-[13px] leading-relaxed bg-white/5 rounded-md p-3 ring-1 ring-inset ring-white/10">
+                     “{data.mensajeCliente}”
+                  </div>
+               </div>
 
-                     <p className="text-white/80">
-                        <span className="text-white/60">Asunto:</span>{" "}
-                        {data.asunto}
-                     </p>
-
+               {isPendiente ? (
+                  <>
                      <div>
-                        <p className="text-white/60 mb-1">Mensaje Cliente:</p>
+                        <div className="text-sm text-white/60 mb-1">
+                           Respuesta
+                        </div>
+                        <textarea
+                           value={respuesta}
+                           onChange={(e) => {
+                              setRespuesta(e.target.value);
+                              syncHidden({ message: e.target.value });
+                           }}
+                           className="w-full h-28 resize-none rounded-md bg-white/[.08] px-3 py-2 text-white/90 outline-none ring-1 ring-inset ring-white/12 focus:ring-2 focus:ring-yellow-500/50 placeholder-white/50"
+                           placeholder="Escribí tu respuesta para enviar por email…"
+                        />
+                     </div>
+                  </>
+               ) : (
+                  <>
+                     <div>
+                        <div className="text-sm text-white/60 mb-1">
+                           Respuesta enviada
+                        </div>
                         <div className="text-white/80 text-[13px] leading-relaxed bg-white/5 rounded-md p-3 ring-1 ring-inset ring-white/10">
-                           “{data.mensajeCliente}”
+                           “{data.respuesta || "-"}”
                         </div>
                      </div>
-
-                     {isPendiente ? (
-                        <>
-                           <div>
-                              <p className="text-white/60 mb-1">Respuesta:</p>
-                              <textarea
-                                 value={respuesta}
-                                 onChange={(e) => setRespuesta(e.target.value)}
-                                 className="w-full h-28 resize-none rounded-md bg-white/5 px-3 py-2 text-white/90 outline-none ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-primary/60"
-                                 placeholder="Escribí tu respuesta para enviar por email…"
-                              />
-                           </div>
-                           <div className="pt-2 flex justify-end">
-                              <button
-                                 onClick={handleSend}
-                                 disabled={sending}
-                                 className="h-9 px-4 rounded-lg bg-primary text-black font-semibold disabled:opacity-60"
-                              >
-                                 {sending ? "Enviando…" : "Enviar Respuesta"}
-                              </button>
-                           </div>
-                        </>
-                     ) : (
-                        <>
-                           <div>
-                              <p className="text-white/60 mb-1">
-                                 Respuesta enviada:
-                              </p>
-                              <div className="text-white/80 text-[13px] leading-relaxed bg-white/5 rounded-md p-3 ring-1 ring-inset ring-white/10">
-                                 “{data.respuesta || "-"}”
-                              </div>
-                           </div>
-                           {data.operadorNombre && (
-                              <p className="text-right text-xs text-white/50 pt-2">
-                                 Respondida por:{" "}
-                                 <span className="text-white/70">
-                                    {data.operadorNombre}
-                                 </span>
-                              </p>
-                           )}
-                        </>
+                     {data.operadorNombre && (
+                        <p className="text-right text-xs text-white/50 pt-1">
+                           Respondida por:{" "}
+                           <span className="text-white/70">
+                              {data.operadorNombre}
+                           </span>
+                        </p>
                      )}
-                  </div>
+                  </>
                )}
+
+               {footer}
             </div>
-         </div>
+         )}
+      </AnimacionDetails>
+   );
+}
+
+function Field({
+   label,
+   value,
+   className,
+}: {
+   label: string;
+   value: string | number | null | undefined;
+   className?: string;
+}) {
+   return (
+      <div className={className}>
+         <div className="text-sm text-white/60">{label}</div>
+         <div className="font-medium text-white">{value ?? "—"}</div>
       </div>
    );
 }

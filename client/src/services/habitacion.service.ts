@@ -13,6 +13,7 @@ function parseNumeroHabitacion(nombre?: string) {
 function b(x: boolean | 0 | 1): boolean {
    return typeof x === "boolean" ? x : Boolean(x);
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toNumberOrNull(v: any): number | null {
    if (v === null || v === undefined || v === "") return null;
    const n = Number(v);
@@ -25,8 +26,7 @@ function mapHabitacion(raw: HabitacionRaw): HabitacionDomain {
       id: raw.id,
       nombre: raw.nombre,
       numero: parseNumeroHabitacion(raw.nombre),
-      tipo: raw.tipo_label || raw.tipo_nombre, // preferí el label del backend
-      tipoSlug: raw.tipo_nombre,
+      tipo: raw.tipo_nombre || "",
       descripcion: raw.descripcion ?? null,
       activa: b(raw.activa),
       disponible: b(raw.disponible),
@@ -38,7 +38,6 @@ function mapHabitacion(raw: HabitacionRaw): HabitacionDomain {
 
 // ==================== SERVICE ====================
 
-/** Trae todas las habitaciones (Domain) */
 export async function fetchHabitaciones(): Promise<HabitacionDomain[]> {
    const { data } = await api.get<HabitacionRaw[]>("/habitaciones");
    const arr = Array.isArray(data) ? data : [];

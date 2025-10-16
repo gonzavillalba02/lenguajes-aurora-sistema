@@ -44,7 +44,6 @@ export type ReservaDomain = {
       nombre: string;
       numero: number;
       tipo: string; // label amigable
-      tipoSlug?: string; // opcional si lo querés guardar
    };
    estado: ReservaEstadoDB;
    meta?: {
@@ -60,7 +59,7 @@ export type ReservaRowVM = {
    cliente: string; // "Apellido, Nombre"
    fecha: string; // "DD/MM/YY - DD/MM/YY"
    habitacionNumero: number;
-   tipoHabitacion: string; // slug o label (definilo en tu adaptador)
+   tipoHabitacion: string; //
    statusLabel: string; // derivado de RESERVA_LABEL
 };
 

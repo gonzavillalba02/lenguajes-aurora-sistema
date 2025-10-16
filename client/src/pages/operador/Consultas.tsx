@@ -206,14 +206,6 @@ export default function Consultas() {
          <section className="space-y-3">
             <SectionHeader title="Consultas Pendientes">
                <SearchBox value={qPend} onChange={setQPend} />
-               {/* Placeholder rango fechas */}
-               <input
-                  type="text"
-                  disabled
-                  value="01/01/24 - 31/12/25"
-                  className="h-9 w-44 rounded-lg bg-filter px-3 text-sm text-white/40 outline-none ring-1 ring-inset ring-white/10"
-                  readOnly
-               />
             </SectionHeader>
 
             {loading ? (
@@ -240,13 +232,6 @@ export default function Consultas() {
          <section className="space-y-3">
             <SectionHeader title="Consultas Respondidas">
                <SearchBox value={qResp} onChange={setQResp} />
-               <input
-                  type="text"
-                  disabled
-                  value="01/01/24 - 31/12/25"
-                  className="h-9 w-44 rounded-lg bg-filter px-3 text-sm text-white/40 outline-none ring-1 ring-inset ring-white/10"
-                  readOnly
-               />
             </SectionHeader>
 
             {loading ? (
