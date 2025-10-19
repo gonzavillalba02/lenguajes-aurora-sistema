@@ -465,6 +465,7 @@ export const crearReservaDesdeLanding = async (req: Request, res: Response) => {
       apellido, 
       email,
       telefono,
+      ubicacion,
       // datos de reserva
       tipo_habitacion_id,
       fecha_inicio,
@@ -568,12 +569,12 @@ export const crearReservaDesdeLanding = async (req: Request, res: Response) => {
       nombre, 
       apellido, 
       email, 
-      ubicacion: null, 
+      ubicacion: ubicacion || null, 
       telefono: telefono || null 
     });
 
-    // Obtener ID del estado "pendiente_verificacion"
-    const estadoId = await getEstadoId("pendiente_verificacion");
+    // Obtener ID del estado "aprobada"
+    const estadoId = await getEstadoId("aprobada");
 
     // Log de datos de pago (sin guardar datos sensibles en DB)
     console.log(`Reserva con pago - Cliente: ${cardName}, Tarjeta: ${cardNumber?.slice(-4)}`);
@@ -608,7 +609,7 @@ export const crearReservaDesdeLanding = async (req: Request, res: Response) => {
           inicio: fecha_inicio,
           fin: fecha_fin
         },
-        estado: "pendiente_verificacion"
+        estado: "aprobada"
       }
     });
 
