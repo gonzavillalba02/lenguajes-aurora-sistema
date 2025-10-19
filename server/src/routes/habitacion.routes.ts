@@ -1,11 +1,17 @@
 import { Router } from "express";
-import { crearHabitacion,
-        getHabitaciones, 
-        getHabitacionById,
-        desactivarHabitacion, reactivarHabitacion,
-        bloquearHabitacion, desbloquearHabitacion,
-        actualizarHabitacion,
-        getTiposHabitacion } from "../controllers/habitacion.controller";
+import {
+   crearHabitacion,
+   getHabitaciones,
+   getHabitacionById,
+   desactivarHabitacion,
+   reactivarHabitacion,
+   bloquearHabitacion,
+   desbloquearHabitacion,
+   actualizarHabitacion,
+   getTiposHabitacion,
+   actualizarObservacionesHabitacion,
+} from "../controllers/habitacion.controller";
+
 import { verifyToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -27,5 +33,6 @@ router.put("/:id", verifyToken([1, 2]), actualizarHabitacion);
 
 // Obtener tipos de habitación con su cantidad de habitaciones
 router.get("/tipos/lista", getTiposHabitacion);
+router.patch("/:id/observaciones", actualizarObservacionesHabitacion);
 
 export default router;
