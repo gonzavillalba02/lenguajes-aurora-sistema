@@ -395,3 +395,238 @@ export const cancelarReserva = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error cancelando la reserva" });
   }
 };
+
+export const getDisponibilidadPorTipo = async (req: Request, res: Response) => {
+  const { tipoId } = req.params;
+
+  try {
+    // Verificar que se pase un id válido
+    if (!tipoId || isNaN(Number(tipoId))) {
+      return res.status(400).json({ message: "ID de tipo de habitación inválido" });
+    }
+
+    // Consultar las reservas aprobadas de habitaciones de ese tipo
+    const [rows]: any = await pool.query(
+      `
+      SELECT 
+        t.id AS tipo_id,
+        t.nombre AS nombre_tipo,
+        r.fecha_inicio,
+        r.fecha_fin
+      FROM reserva r
+      INNER JOIN habitacion h ON r.habitacion_id = h.id
+      INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
+      WHERE t.id = ?
+        AND r.estado_id = 3
+        AND h.activa = TRUE
+      ORDER BY r.fecha_inicio ASC;
+      `,
+      [tipoId]
+    );
+
+    // Si no hay reservas, devolver estructura vacía
+    if (rows.length === 0) {
+      const [tipo]: any = await pool.query(
+        `SELECT id AS tipo_id, nombre AS nombre_tipo FROM tipo_habitacion WHERE id = ?`,
+        [tipoId]
+      );
+
+      return res.json({
+        tipo_id: tipo[0]?.tipo_id || Number(tipoId),
+        nombre_tipo: tipo[0]?.nombre_tipo || null,
+        reservas: [],
+      });
+    }
+
+    // Estructurar el payload
+    const { tipo_id, nombre_tipo } = rows[0];
+    const reservas = rows.map((r: any) => ({
+      fecha_inicio: r.fecha_inicio,
+      fecha_fin: r.fecha_fin,
+    }));
+
+    res.json({
+      tipo_id,
+      nombre_tipo,
+      reservas,
+    });
+  } catch (error) {
+    console.error("Error obteniendo disponibilidad:", error);
+    res.status(500).json({ message: "Error obteniendo disponibilidad" });
+  }
+};
+
+/** POST /api/reservas/desde-landing - Crear reserva desde la landing (incluye datos de pago) */
+export const crearReservaDesdeLanding = async (req: Request, res: Response) => {
+  try {
+    const {
+      // datos de persona
+      nombre,
+      apellido, 
+      email,
+      telefono,
+      ubicacion,
+      // datos de reserva
+      tipo_habitacion_id,
+      fecha_inicio,
+      fecha_fin,
+      observaciones,
+      // datos de pago (solo para logging/validación)
+      cardName,
+      cardNumber,
+      cvc,
+      expiry
+    } = req.body;
+
+    // Validaciones básicas
+    if (!nombre || !apellido || !email || !tipo_habitacion_id || !fecha_inicio || !fecha_fin) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Faltan datos obligatorios: nombre, apellido, email, tipo_habitacion_id, fecha_inicio, fecha_fin" 
+      });
+    }
+
+    // Validar formato de fechas y que fecha_inicio <= fecha_fin
+    const fechaInicioDate = new Date(fecha_inicio);
+    const fechaFinDate = new Date(fecha_fin);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    if (isNaN(fechaInicioDate.getTime()) || isNaN(fechaFinDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Formato de fecha inválido. Use formato YYYY-MM-DD"
+      });
+    }
+
+    if (fechaInicioDate >= fechaFinDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Las fechas seleccionadas no son válidas. La fecha de fin debe ser posterior a la fecha de inicio."
+      });
+    }
+
+    if (fechaInicioDate < hoy) {
+      return res.status(400).json({
+        success: false,
+        message: "No se pueden hacer reservas para fechas pasadas. Por favor revise las fechas seleccionadas."
+      });
+    }
+
+    // Verificar que el tipo de habitación existe
+    const [tipoRows]: any = await pool.query(
+      "SELECT id, nombre FROM tipo_habitacion WHERE id = ?",
+      [tipo_habitacion_id]
+    );
+
+    if (!tipoRows.length) {
+      return res.status(400).json({
+        success: false,
+        message: "El tipo de habitación seleccionado no existe"
+      });
+    }
+
+    // Buscar habitaciones disponibles de ese tipo para las fechas solicitadas
+    const [habitacionesDisponibles]: any = await pool.query(
+      `SELECT h.id, h.nombre 
+       FROM habitacion h
+       WHERE h.tipo_id = ? 
+         AND h.disponible = TRUE 
+         AND h.activa = TRUE
+         AND h.id NOT IN (
+           SELECT DISTINCT r.habitacion_id 
+           FROM reserva r 
+           INNER JOIN estado_reserva e ON r.estado_id = e.id
+           WHERE e.nombre IN ('pendiente_verificacion', 'pendiente_pago', 'aprobada')
+             AND (
+               (r.fecha_inicio <= ? AND r.fecha_fin > ?) OR
+               (r.fecha_inicio < ? AND r.fecha_fin >= ?) OR
+               (r.fecha_inicio >= ? AND r.fecha_fin <= ?)
+             )
+         )
+       ORDER BY h.id ASC
+       LIMIT 1`,
+      [
+        tipo_habitacion_id,
+        fecha_inicio, fecha_inicio,  // casos de solapamiento
+        fecha_fin, fecha_fin,
+        fecha_inicio, fecha_fin
+      ]
+    );
+
+    if (!habitacionesDisponibles.length) {
+      return res.status(409).json({
+        success: false,
+        message: `No hay habitaciones disponibles del tipo ${tipoRows[0].nombre} para las fechas seleccionadas. Por favor revise las fechas o seleccione otro tipo de habitación.`
+      });
+    }
+
+    // Asignar la primera habitación disponible
+    const habitacionSeleccionada = habitacionesDisponibles[0];
+
+    // Crear/obtener persona por email
+    const personaId = await ensurePersona({ 
+      nombre, 
+      apellido, 
+      email, 
+      ubicacion: ubicacion || null, 
+      telefono: telefono || null 
+    });
+
+    // Obtener ID del estado "aprobada"
+    const estadoId = await getEstadoId("aprobada");
+
+    // Log de datos de pago (sin guardar datos sensibles en DB)
+    console.log(`Reserva con pago - Cliente: ${cardName}, Tarjeta: ${cardNumber?.slice(-4)}`);
+
+    // Crear la reserva
+    const [insertResult]: any = await pool.query(
+      `INSERT INTO reserva 
+        (persona_id, habitacion_id, fecha_inicio, fecha_fin, estado_id, observaciones, creada_por, aprobada_por)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)`,
+      [
+        personaId, 
+        habitacionSeleccionada.id, 
+        fecha_inicio, 
+        fecha_fin, 
+        estadoId, 
+        observaciones || null
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Reserva creada exitosamente. Recibirá un email de confirmación una vez que sea verificada por nuestro equipo.",
+      data: {
+        reservaId: insertResult.insertId,
+        personaId,
+        habitacion: {
+          id: habitacionSeleccionada.id,
+          nombre: habitacionSeleccionada.nombre,
+          tipo: tipoRows[0].nombre
+        },
+        fechas: {
+          inicio: fecha_inicio,
+          fin: fecha_fin
+        },
+        estado: "aprobada"
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error creando reserva desde landing:', error);
+    
+    // Manejar errores específicos
+    if (error.message?.includes('no encontrado')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor. Por favor intente nuevamente o contacte con soporte."
+    });
+  }
+};
