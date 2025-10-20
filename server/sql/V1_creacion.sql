@@ -29,8 +29,6 @@ CREATE TABLE estado_reserva (
 );
 
 INSERT INTO estado_reserva (nombre) VALUES
-('pendiente_verificacion'),
-('pendiente_pago'),
 ('aprobada'),
 ('rechazada'),
 ('cancelada');
@@ -68,7 +66,7 @@ CREATE TABLE persona (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     apellido VARCHAR(100) NOT NULL,
-    ubicacion VARCHAR(255), -- se puede guardar la dirección o un JSON con coords
+    ubicacion VARCHAR(255), 
     email VARCHAR(100) UNIQUE NOT NULL,
     telefono VARCHAR(20)
 );
@@ -83,13 +81,13 @@ CREATE TABLE reserva (
     estado_id INT NOT NULL,
     observaciones VARCHAR(255),
     creada_por INT,
-    aprobada_por INT,
+    modificada_por INT,
     fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (persona_id) REFERENCES persona(id),
     FOREIGN KEY (habitacion_id) REFERENCES habitacion(id),
     FOREIGN KEY (estado_id) REFERENCES estado_reserva(id),
     FOREIGN KEY (creada_por) REFERENCES usuario(id),
-    FOREIGN KEY (aprobada_por) REFERENCES usuario(id)
+    FOREIGN KEY (modificada_por) REFERENCES usuario(id)
 );
 
 -- Tabla ESTADO_CONSULTA

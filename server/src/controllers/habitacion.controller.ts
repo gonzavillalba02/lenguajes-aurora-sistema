@@ -284,9 +284,9 @@ export const actualizarObservacionesHabitacion = async (
 };
 
 export const getTiposHabitacion = async (req: Request, res: Response) => {
-  try {
-    const [rows]: any = await pool.query(
-      `
+   try {
+      const [rows]: any = await pool.query(
+         `
       SELECT 
         t.id,
         t.nombre,
@@ -298,6 +298,7 @@ export const getTiposHabitacion = async (req: Request, res: Response) => {
       LEFT JOIN habitacion h 
         ON h.tipo_id = t.id 
         AND h.activa = TRUE
+        AND h.disponible = TRUE
       GROUP BY 
         t.id, 
         t.nombre, 
@@ -306,13 +307,13 @@ export const getTiposHabitacion = async (req: Request, res: Response) => {
         t.precio_noche
       ORDER BY t.id ASC;
       `
-    );
+      );
 
-    res.json(rows);
-  } catch (error) {
-    console.error("Error obteniendo tipos de habitación:", error);
-    res.status(500).json({ message: "Error obteniendo tipos de habitación" });
-  }
+      res.json(rows);
+   } catch (error) {
+      console.error("Error obteniendo tipos de habitación:", error);
+      res.status(500).json({ message: "Error obteniendo tipos de habitación" });
+   }
 };
 
 //Funcion para pasar de "parejas_estandar" a "Parejas Estándar"
