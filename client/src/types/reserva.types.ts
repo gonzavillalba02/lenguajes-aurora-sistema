@@ -1,9 +1,6 @@
 import type { ISODateString, Persona, RangoFecha, ValueOf } from "./core";
 
-/** ===== Estados de reserva (DB) + labels (UI) desde una sola fuente ===== */
 export const RESERVA_ESTADO = {
-   PENDIENTE_VERIFICACION: "pendiente_verificacion",
-   PENDIENTE_PAGO: "pendiente_pago",
    APROBADA: "aprobada",
    RECHAZADA: "rechazada",
    CANCELADA: "cancelada",
@@ -11,8 +8,6 @@ export const RESERVA_ESTADO = {
 export type ReservaEstadoDB = ValueOf<typeof RESERVA_ESTADO>;
 
 export const RESERVA_LABEL: Record<ReservaEstadoDB, string> = {
-   pendiente_verificacion: "Pendiente",
-   pendiente_pago: "Pendiente de pago",
    aprobada: "Aprobada",
    rechazada: "Rechazada",
    cancelada: "Cancelada",

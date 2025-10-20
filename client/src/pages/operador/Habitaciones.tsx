@@ -1,6 +1,6 @@
 // src/pages/admin/Habitaciones.tsx
 import { useEffect, useMemo, useState } from "react";
-import KpiCard from "../operador/components/KpiCard";
+import KpiCard from "../../components/KpiCard";
 import RoomsGrid from "./components/RoomsGrid";
 import HabitacionDetailsModal from "../operador/components/HabitacionDetailsModal";
 
@@ -15,7 +15,7 @@ import { fetchHabitaciones } from "../../services/habitacion.service";
 import { fetchReservasAll } from "../../services/reservas.service";
 
 // ✅ Utilidades unificadas de rango/solape
-import { isRoomOccupiedInRange, toDateRange } from "../../lib/dateRange";
+import { isRoomOccupiedInRange } from "../../lib/dateRange";
 
 // Extiende el VM base solo para agregar el "tipo" opcional en esta vista
 type RoomVM = RoomVMBase & { tipo?: string };
@@ -64,30 +64,35 @@ export default function Habitaciones() {
    // VM por rango: calcula Libre/Ocupada/Cerrada según reservas + fechas (misma regla que modal)
    const roomsByRange: RoomVM[] = useMemo(() => {
       if (!habitaciones.length) return [];
-
-      const d1 = toDateRange(from, false);
-      let d2 = toDateRange(to, true); // fin de día para UI
-      // Si rango inválido, forzamos hasta = desde + 1 día
-      if (!(d2 > d1)) d2 = new Date(d1.getTime() + 24 * 60 * 60 * 1000);
+      const hoyISO = new Date().toISOString().slice(0, 10) as ISODateString;
 
       return habitaciones.map((h) => {
-         if (!h.activa)
+         // CERRADA = no disponible
+         if (!h.disponible) {
             return {
                id: h.id,
                numero: h.numero,
                status: "Cerrada" as HabStatus,
                tipo: h.tipo,
             };
+         }
 
-         const ocupada = isRoomOccupiedInRange(h.id, reservas, from, to);
+         // OCUPADA HOY
+         const ocupadaHoy = isRoomOccupiedInRange(
+            h.id,
+            reservas,
+            hoyISO,
+            hoyISO
+         );
+
          return {
             id: h.id,
             numero: h.numero,
-            status: (ocupada ? "Ocupada" : "Libre") as HabStatus,
+            status: (ocupadaHoy ? "Ocupada" : "Libre") as HabStatus,
             tipo: h.tipo,
          };
       });
-   }, [habitaciones, reservas, from, to]);
+   }, [habitaciones, reservas]);
 
    // KPIs en base al rango
    const kpis = useMemo(() => {

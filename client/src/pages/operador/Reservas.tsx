@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
-import KpiCard from "../operador/components/KpiCard";
+import KpiCard from "../../components/KpiCard";
 import ReservasTable from "./components/ReservasTable";
 import CreateReservaModal from "../operador/components/CreateReservaModal";
 import ReservaDetailsModal from "../operador/components/ReservaDetailsModal";
@@ -16,11 +16,7 @@ import type { ISODateString } from "../../types/core";
 import type { ReservaDomain, ReservaEstadoDB } from "../../types/reserva.types";
 import { RESERVA_LABEL } from "../../types/reserva.types";
 
-// ⬇️ (Opcional) Variantes de animación si tenés un archivo dedicado
-// Si tenés tu archivo AnimacionDetails, descomentá la siguiente línea
-// import { listVariants, itemVariants, fadeInUp } from "../../lib/AnimacionDetails";
-
-// Fallbacks por si no existe AnimacionDetails
+// Animations
 const listVariants = {
    hidden: { opacity: 0 },
    visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
@@ -41,24 +37,23 @@ function toISODateOnly(d: Date) {
    const day = String(d.getDate()).padStart(2, "0");
    return `${y}-${m}-${day}`;
 }
-
 function todayISO(): ISODateString {
    return new Date().toISOString().slice(0, 10) as ISODateString;
 }
-function tomorrowISO(): ISODateString {
-   return new Date(Date.now() + 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10) as ISODateString;
+function addDaysISO(baseISO: ISODateString, days: number): ISODateString {
+   const d = new Date(`${baseISO}T00:00:00`);
+   d.setDate(d.getDate() + days);
+   return d.toISOString().slice(0, 10) as ISODateString;
 }
 
-// ======= Tipos (ajustá los slugs a tu BD) =======
+// ======= Tipos (ajustá slugs si es necesario) =======
 const TYPE_OPTIONS: Array<{ value: string; label: string }> = [
    { value: "parejas_estandar", label: "Parejas Estándar" },
-   { value: "parejas_suite", label: "Parejas Suite" },
+   { value: "parejas_suit", label: "Parejas Suite" },
    { value: "familiar_estandar", label: "Familiar Estándar" },
-   { value: "familiar_suite", label: "Familiar Suite" },
-   { value: "cuadruple_estandar", label: "Triple" },
-   { value: "cuadruple_suit", label: "Cuadruple Suit" },
+   { value: "familiar_suit", label: "Familiar Suite" },
+   { value: "cuadruple_estandar", label: "Cuádruple Estándar" },
+   { value: "cuadruple_suit", label: "Cuádruple Suite" },
 ];
 
 // ======= page =======
@@ -69,12 +64,13 @@ export default function Reservas() {
    // filtros UI
    const [q, setQ] = useState("");
    const [estado, setEstado] = useState<ReservaEstadoDB | "">("");
-   // Toggle list multi-selección de tipos
    const [tiposSeleccionados, setTiposSeleccionados] = useState<string[]>([]);
 
-   // Rango por defecto: hoy–mañana (se adapta)
-   const [from, setFrom] = useState<ISODateString>(todayISO());
-   const [to, setTo] = useState<ISODateString>(tomorrowISO());
+   // ⏱️ Rango por defecto: hoy → +30 días
+   const defaultFrom = todayISO();
+   const defaultTo = addDaysISO(defaultFrom, 30);
+   const [from, setFrom] = useState<ISODateString>(defaultFrom);
+   const [to, setTo] = useState<ISODateString>(defaultTo);
 
    // Modales / selección
    const [showCreate, setShowCreate] = useState(false);
@@ -93,17 +89,19 @@ export default function Reservas() {
    // Normalizar rango si el usuario invierte fechas
    useEffect(() => {
       if (from && to && from > to) {
-         // si se invierte, empujamos "to" al día siguiente de "from"
-         const d = new Date(from);
-         const next = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-         setTo(next.toISOString().slice(0, 10) as ISODateString);
+         const next = addDaysISO(from, 1);
+         setTo(next);
       }
    }, [from, to]);
 
    // ===== Filtro principal =====
    const filtered = useMemo(() => {
+      // límites de filtro (incluyentes)
+      const fStart = from ? new Date(`${from}T00:00:00`) : null;
+      const fEnd = to ? new Date(`${to}T23:59:59.999`) : null;
+
       return reservas.filter((r) => {
-         // búsqueda (cliente o número de habitación o tipo)
+         // búsqueda: cliente / nro / tipo
          const fullName = `${r.cliente.nombre ?? ""} ${
             r.cliente.apellido ?? ""
          }`
@@ -124,20 +122,21 @@ export default function Reservas() {
             tiposSeleccionados.length === 0 ||
             tiposSeleccionados.some((t) => t.toLowerCase() === tipoSlug);
 
-         // rango de fechas (intersección simple dentro de [from, to])
-         const start = r.rango.desde; // Date
-         const end = r.rango.hasta; // Date
-         const fromOk = !from || start >= new Date(`${from}T00:00:00`);
-         const toOk = !to || end <= new Date(`${to}T23:59:59.999`);
+         // 🗓️ lógica de FECHAS: mostramos reservas que SE SOLAPAN con [from, to]
+         const start = r.rango.desde;
+         const end = r.rango.hasta;
 
-         return matchesQ && matchesEstado && matchesTipo && fromOk && toOk;
+         const overlaps =
+            (!fStart || end >= fStart) && (!fEnd || start <= fEnd);
+
+         return matchesQ && matchesEstado && matchesTipo && overlaps;
       });
    }, [reservas, q, estado, tiposSeleccionados, from, to]);
 
-   // KPIs deben actualizarse según lo filtrado
+   // KPIs según lo filtrado
    const counts = useMemo(() => contarPorEstado(filtered), [filtered]);
 
-   // Adaptar a la tabla (espera fechaInicio/fechaFin y status como label)
+   // Adaptar a la tabla
    const rowsForTable = useMemo(
       () =>
          filtered.map((r) => ({
@@ -150,8 +149,6 @@ export default function Reservas() {
             habitacionNumero: r.habitacion.numero,
             tipoHabitacion: r.habitacion.tipo ?? "—",
             status: RESERVA_LABEL[r.estado] as
-               | "Pendiente"
-               | "Pendiente de pago"
                | "Aprobada"
                | "Rechazada"
                | "Cancelada",
@@ -167,12 +164,11 @@ export default function Reservas() {
             : [...prev, value]
       );
    };
-
    const clearTipos = () => setTiposSeleccionados([]);
-
-   const setHoyManiana = () => {
-      setFrom(todayISO());
-      setTo(tomorrowISO());
+   const setRango30Dias = () => {
+      const f = todayISO();
+      setFrom(f);
+      setTo(addDaysISO(f, 30));
    };
 
    return (
@@ -186,21 +182,7 @@ export default function Reservas() {
          >
             <motion.div variants={itemVariants}>
                <KpiCard
-                  label="Pendiente de Verificación"
-                  value={counts.pendiente_verificacion}
-                  variant="pendienteReserva"
-               />
-            </motion.div>
-            <motion.div variants={itemVariants}>
-               <KpiCard
-                  label="Pendiente de Pago"
-                  value={counts.pendiente_pago}
-                  variant="pendientePago"
-               />
-            </motion.div>
-            <motion.div variants={itemVariants}>
-               <KpiCard
-                  label="Aceptada"
+                  label="Aprobadas"
                   value={counts.aprobada}
                   variant="aprobada"
                />
@@ -260,10 +242,10 @@ export default function Reservas() {
                   />
                   <button
                      className="rounded-[var(--radius-xl2)] bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10 border border-white/10"
-                     onClick={setHoyManiana}
-                     title="Rango rápido: Hoy–Mañana"
+                     onClick={setRango30Dias}
+                     title="Rango rápido: Hoy → +30 días"
                   >
-                     Hoy–Mañana
+                     30 días
                   </button>
                </div>
 
@@ -275,10 +257,6 @@ export default function Reservas() {
                   className="rounded-[var(--radius-xl2)] bg-bg2 px-3 py-2 text-sm text-text border border-white/10 focus:outline-none focus:ring-2 focus:ring-button/40"
                >
                   <option value="">Estado</option>
-                  <option value="pendiente_verificacion">
-                     Pendiente de Verificación
-                  </option>
-                  <option value="pendiente_pago">Pendiente de Pago</option>
                   <option value="aprobada">Aprobada</option>
                   <option value="rechazada">Rechazada</option>
                   <option value="cancelada">Cancelada</option>
@@ -338,7 +316,7 @@ export default function Reservas() {
             animate="visible"
             className="card overflow-hidden"
          >
-            <div className="px-4 py-3  bg-bg/30">
+            <div className="px-4 py-3 bg-bg/30">
                <h2 className="text-white font-medium">Reservas</h2>
             </div>
 
@@ -346,7 +324,6 @@ export default function Reservas() {
                <ReservasTable
                   rows={rowsForTable}
                   loading={loading}
-                  // 👇 al click, abrimos detalle
                   onRowClick={(id) => {
                      setSelectedId(id);
                      setShowDetail(true);
@@ -359,7 +336,6 @@ export default function Reservas() {
          <CreateReservaModal
             open={showCreate}
             onClose={() => setShowCreate(false)}
-            // Cuando se crea, recargamos y mantenemos filtros → KPIs/tabla se adaptan
             onCreated={async () => {
                setLoading(true);
                const all = await fetchReservasAll();
@@ -374,7 +350,6 @@ export default function Reservas() {
             reservaId={selectedId}
             onClose={() => setShowDetail(false)}
             onChanged={async () => {
-               // Si desde el detalle cambió estado/fechas, reflejar en KPIs y tabla
                setLoading(true);
                const all = await fetchReservasAll();
                setReservas(all);

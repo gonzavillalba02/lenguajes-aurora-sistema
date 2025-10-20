@@ -4,11 +4,10 @@ import { StatusBadge } from "../../../components/StatusBadge";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import Toast from "../../../components/Toast";
 
-import AnimacionDetails from "../../../components/AnimacionDetails"; // <-- ajustá la ruta si es otra
+import AnimacionDetails from "../../../components/AnimacionDetails";
 
 import {
    fetchReservaById,
-   pasarAPendientePago,
    aprobarReserva,
    rechazarReserva,
    cancelarReserva,
@@ -63,11 +62,7 @@ export default function ReservaDetailsModal({
    }, [open, reservaId]);
 
    const estadoLabel = (e: ReservaDomain["estado"]) =>
-      e === "pendiente_verificacion"
-         ? "Pendiente"
-         : e === "pendiente_pago"
-         ? "Pendiente de pago"
-         : e === "aprobada"
+      e === "aprobada"
          ? "Aprobada"
          : e === "rechazada"
          ? "Rechazada"

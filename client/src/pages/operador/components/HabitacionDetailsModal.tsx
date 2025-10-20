@@ -9,8 +9,8 @@ import type { ISODateString } from "../../../types/core";
 import type { ReservaDomain } from "../../../types/reserva.types";
 
 import {
-   desactivarHabitacion,
-   reactivarHabitacion,
+   bloquearHabitacion,
+   desbloquearHabitacion,
    actualizarObservacionesHabitacion,
 } from "../../../services/habitacion.service";
 
@@ -77,7 +77,9 @@ export default function HabitacionDetailsModal({
          setErrorMsg(null);
       }
    }, [open, room]);
-
+   useEffect(() => {
+      if (open) setToast({ open: false, message: "", type: "success" });
+   }, [open]);
    // Rango activo (default hoy→mañana)
    const { fromISO, toISO, dFrom, dTo } = useMemo(() => {
       if (range?.from && range?.to) {
@@ -107,16 +109,21 @@ export default function HabitacionDetailsModal({
    // Estado visual
    const estado = useMemo(() => {
       if (!room) return { label: "", color: "" };
-      if (!room.activa)
+
+      // Cerrada (no disponible) sin depender de reservas
+      if (!room.disponible)
          return { label: "Cerrada", color: "bg-habitacion-cerrada" };
-      const ocupada =
-         room && reservas
-            ? isRoomOccupiedInRange(room.id, reservas, fromISO, toISO)
-            : false;
-      return ocupada
+
+      // Ocupada Hoy
+      const hoyISO = new Date().toISOString().slice(0, 10) as ISODateString;
+      const ocupadaHoy = reservas
+         ? isRoomOccupiedInRange(room.id, reservas, hoyISO, hoyISO)
+         : false;
+
+      return ocupadaHoy
          ? { label: "Ocupada", color: "bg-habitacion-ocupada" }
          : { label: "Libre", color: "bg-habitacion-libre" };
-   }, [room, reservas, fromISO, toISO]);
+   }, [room, reservas]);
 
    // Descripción tipo (del tipo de habitación)
    const descripcionTipo = useMemo(() => {
@@ -326,7 +333,7 @@ export default function HabitacionDetailsModal({
 
          {/* Acciones */}
          <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
-            {room.activa ? (
+            {room.disponible ? (
                <button
                   className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-600/85 disabled:opacity-60"
                   disabled={loading}
@@ -336,7 +343,7 @@ export default function HabitacionDetailsModal({
                         message:
                            "¿Seguro querés cerrar esta habitación? No podrá ser utilizada hasta reabrirla.",
                         successMsg: "Habitación cerrada",
-                        action: () => desactivarHabitacion(room.id),
+                        action: () => bloquearHabitacion(room.id),
                      })
                   }
                >
@@ -352,7 +359,7 @@ export default function HabitacionDetailsModal({
                         message:
                            "¿Querés reabrir esta habitación? Volverá a estar operativa.",
                         successMsg: "Habitación abierta",
-                        action: () => reactivarHabitacion(room.id),
+                        action: () => desbloquearHabitacion(room.id),
                      })
                   }
                >

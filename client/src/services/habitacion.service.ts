@@ -33,40 +33,64 @@ function mapHabitacion(raw: HabitacionRaw): HabitacionDomain {
       observaciones: raw.observaciones ?? null,
       capacidad: raw.capacidad ?? null,
       precioNoche: toNumberOrNull(raw.precio_noche),
+      tipo_id: raw.tipo_id,
    };
 }
 
 // ==================== SERVICE ====================
 
-export async function fetchHabitaciones(): Promise<HabitacionDomain[]> {
-   const { data } = await api.get<HabitacionRaw[]>("/habitaciones");
-   const arr = Array.isArray(data) ? data : [];
-   return arr.map(mapHabitacion);
-}
+export async function fetchHabitaciones(opts?: {
+   scope?: "admin" | "operator";
+}): Promise<HabitacionDomain[]> {
+   const scope = opts?.scope ?? "admin";
 
+   // no cambiamos la URL de backend
+   const { data } = await api.get<HabitacionRaw[]>("/habitaciones");
+   const arr = (Array.isArray(data) ? data : []).map(mapHabitacion);
+
+   // operador: solo activas (activa=true)
+   if (scope === "operator") return arr.filter((h) => h.activa === true);
+
+   // admin: ve todas
+   return arr;
+}
+//Cerrar habitacion (operador)
 export async function bloquearHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/bloquear`, {});
 }
-
+//Abrir Habitacion (operador)
 export async function desbloquearHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/desbloquear`, {});
 }
-
+//Eliminar habitacion (admin)
 export async function desactivarHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/desactivar`, {});
 }
-
+//Reactivar habitacion (admin)
 export async function reactivarHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/reactivar`, {});
 }
 
 /**
  * Actualiza SOLO las observaciones de la habitación (no toca el nombre).
- * Si tu backend expone otra ruta, cambia la URL acá.
  */
 export async function actualizarObservacionesHabitacion(
    id: number,
    observaciones: string | null
 ) {
    return api.patch(`/habitaciones/${id}/observaciones`, { observaciones });
+}
+export async function actualizarHabitacion(
+   id: number,
+   body: { tipo_id?: number; tipo_slug?: string; observaciones?: string | null }
+) {
+   return api.patch(`/habitaciones/${id}`, body);
+}
+export async function crearHabitacion(payload: {
+   nombre: string;
+   tipo_id?: number;
+   tipo_slug?: string;
+   observaciones?: string | null;
+}) {
+   return api.post(`/habitaciones`, payload);
 }

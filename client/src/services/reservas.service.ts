@@ -54,21 +54,6 @@ export async function fetchReservasAll(): Promise<ReservaDomain[]> {
    return arr.map(mapReserva);
 }
 
-/** Filtra pendientes (verificación o pago), ordenadas por fecha de inicio asc */
-export async function fetchReservasPendientes(
-   limit = 6
-): Promise<ReservaDomain[]> {
-   const all = await fetchReservasAll();
-   return all
-      .filter(
-         (r) =>
-            r.estado === "pendiente_verificacion" ||
-            r.estado === "pendiente_pago"
-      )
-      .sort((a, b) => a.rango.desde.getTime() - b.rango.desde.getTime())
-      .slice(0, limit);
-}
-
 /** Cuenta por estado (para KPIs) a partir de un arreglo Domain */
 export function contarPorEstado(
    reservas: ReservaDomain[]
@@ -78,13 +63,10 @@ export function contarPorEstado(
          acc[r.estado] = (acc[r.estado] ?? 0) + 1;
          return acc;
       },
-      {
-         pendiente_verificacion: 0,
-         pendiente_pago: 0,
-         aprobada: 0,
-         rechazada: 0,
-         cancelada: 0,
-      } as Record<ReservaEstadoDB, number>
+      { aprobada: 0, rechazada: 0, cancelada: 0 } as Record<
+         ReservaEstadoDB,
+         number
+      >
    );
 }
 
@@ -97,10 +79,6 @@ export async function crearReserva(
    return data;
 }
 
-// ---- STATE TRANSITIONS ----
-export async function pasarAPendientePago(id: number | string) {
-   await api.patch(`/reservas/${id}/pendiente-pago`);
-}
 export async function aprobarReserva(id: number | string) {
    await api.patch(`/reservas/${id}/aprobar`);
 }

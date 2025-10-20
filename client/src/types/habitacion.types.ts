@@ -34,6 +34,7 @@ export type HabitacionDomain = {
    observaciones?: string | null;
    capacidad?: number | null;
    precioNoche?: number | null;
+   tipo_id?: number;
 };
 
 /** ===== VIEWMODEL simple para mapa/grid ===== */

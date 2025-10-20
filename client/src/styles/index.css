@@ -12,8 +12,6 @@
    --color-msg: #505b4f;
 
    /* estados reservas */
-   --color-estado-pendienteReserva: #3b80d8;
-   --color-estado-pendientePago: #dbb008;
    --color-estado-aprobada: #04913c;
    --color-estado-rechazada: #dc2626;
    --color-estado-cancelada: #f5e7ea;

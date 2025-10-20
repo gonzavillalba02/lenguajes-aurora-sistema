@@ -10,7 +10,6 @@ import Consultas from "../pages/operador/Consultas";
 import HabitacionesAdm from "../pages/administrador/Habitaciones";
 import OperadoresAdm from "../pages/administrador/Operadores";
 import DashboardAdm from "../pages/administrador/Dashboard";
-import EstadisticasAdm from "../pages/administrador/Estadisticas";
 import { ProtectedRoute } from "../routes/protected";
 import NotFound from "../pages/login/NotFound";
 import Forbidden from "../pages/login/Forbidden";
@@ -47,7 +46,6 @@ export const router = createBrowserRouter([
                { index: true, element: <DashboardAdm /> },
                { path: "habitaciones", element: <HabitacionesAdm /> },
                { path: "operadores", element: <OperadoresAdm /> },
-               { path: "estadisticas", element: <EstadisticasAdm /> },
             ],
          },
          { path: "403", element: <Forbidden /> },

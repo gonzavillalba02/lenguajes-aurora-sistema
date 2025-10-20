@@ -1,7 +1,7 @@
 import Sidebar from "../components/SideBar";
 import Topbar from "../components/TopBar";
 import { Outlet } from "react-router-dom";
-import { Home, BedDouble, MessageSquare } from "lucide-react";
+import { Home, BedDouble, User } from "lucide-react";
 import type { JSX } from "react";
 const administradorItems: Array<{
    to: string;
@@ -17,17 +17,12 @@ const administradorItems: Array<{
    {
       to: "/administrador/operadores",
       label: "Operadores",
-      icon: <BedDouble className="size-4" />,
-   },
-   {
-      to: "/administrador/estadisticas",
-      label: "Estadisticas",
-      icon: <MessageSquare className="size-4" />,
+      icon: <User className="size-4" />,
    },
 ];
 export default function AdminLayout() {
    return (
-      <div className="min-h-screen ">
+      <div className="min-h-screen">
          <Sidebar items={administradorItems} />
          <main className="pl-16">
             <Topbar title="Panel Administrador" rol="Admin" />

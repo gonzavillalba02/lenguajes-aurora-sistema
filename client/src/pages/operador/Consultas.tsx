@@ -1,6 +1,6 @@
 // src/pages/operador/Consultas.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import KpiCard from "./components/KpiCard";
+import KpiCard from "../../components/KpiCard";
 import ConsultaDetailsModal from "./components/ConsultaDetailsModal";
 
 import {
