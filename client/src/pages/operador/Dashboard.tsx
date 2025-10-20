@@ -9,7 +9,10 @@ import ReservaDetailsModal from "./components/ReservaDetailsModal";
 import HabitacionDetailsModal from "./components/HabitacionDetailsModal";
 
 import { fetchReservasAll } from "../../services/reservas.service";
-import { fetchHabitaciones } from "../../services/habitacion.service";
+import {
+   fetchHabitaciones,
+   fetchTiposHabitacionResumen,
+} from "../../services/habitacion.service";
 import { ConsultasService } from "../../services/consultas.service";
 
 import type { HabitacionDomain } from "../../types/habitacion.types";
@@ -25,6 +28,11 @@ function fmt(d: Date) {
 function toISO(d: Date): ISODateString {
    return d.toISOString().slice(0, 10) as ISODateString;
 }
+const currency = new Intl.NumberFormat("es-AR", {
+   style: "currency",
+   currency: "ARS",
+   maximumFractionDigits: 0,
+});
 
 // =============== Donut (sin libs) ===============
 function Donut({
@@ -168,6 +176,43 @@ function MiniList({
    );
 }
 
+// =============== Info rápida de tipos (al lado del donut) ===============
+function TiposQuickInfo({
+   tipos,
+}: {
+   tipos: Array<{
+      id: number;
+      label: string;
+      cantidad: number;
+      precio_noche: number;
+   }>;
+}) {
+   if (!tipos?.length) {
+      return (
+         <div className="text-sm text-white/70">Sin información de tipos.</div>
+      );
+   }
+
+   return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
+         {tipos.map((t) => (
+            <div
+               key={t.id}
+               className="rounded-lg bg-white/5 border border-white/10 p-3"
+            >
+               <div className="text-xs text-white/60">{t.label}</div>
+               <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-white font-semibold">{t.cantidad}</span>
+                  <span className="text-white/70 text-sm">
+                     • {currency.format(t.precio_noche)}
+                  </span>
+               </div>
+            </div>
+         ))}
+      </div>
+   );
+}
+
 // ===================== Componente =====================
 export default function Dashboard() {
    const [, setLoading] = useState(true);
@@ -187,20 +232,82 @@ export default function Dashboard() {
    const [showRoomModal, setShowRoomModal] = useState(false);
    const [selectedRoom] = useState<HabitacionDomain | null>(null);
 
+   const [tiposResumen, setTiposResumen] = useState<
+      Array<{
+         id: number;
+         label: string;
+         cantidad: number;
+         precio_noche: number;
+      }>
+   >([]);
+
    const hoyISO = toISO(new Date());
 
    const refresh = useCallback(async () => {
       setLoading(true);
       try {
-         const [allReservas, allHabs, consultasGrouped] = await Promise.all([
-            fetchReservasAll(),
-            fetchHabitaciones(),
-            ConsultasService.fetchGrouped(), // { kpi: { pendientes, respondidas }, ... }
-         ]);
+         const [allReservas, allHabs, consultasGrouped, tipos] =
+            await Promise.all([
+               fetchReservasAll(),
+               fetchHabitaciones(),
+               ConsultasService.fetchGrouped(), // { kpi: { pendientes, respondidas }, ... }
+               (async () => {
+                  try {
+                     const res = await fetchTiposHabitacionResumen();
+                     return res;
+                  } catch {
+                     return null; // => fallback abajo
+                  }
+               })(),
+            ]);
 
          setReservas(allReservas);
          setHabs(allHabs);
          setConsultasPendientes(consultasGrouped?.kpi?.pendientes ?? 0);
+
+         if (tipos && Array.isArray(tipos)) {
+            setTiposResumen(
+               tipos.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  cantidad: t.cantidad,
+                  precio_noche: t.precio_noche,
+               }))
+            );
+         } else {
+            // Fallback: agrupar por tipo desde habs (solo activas) y tomar un precio de referencia
+            const map = new Map<
+               string,
+               {
+                  id: number;
+                  label: string;
+                  cantidad: number;
+                  precio_noche: number;
+               }
+            >();
+            for (const h of allHabs) {
+               if (!h.activa || !h.disponible) continue;
+
+               const key = String(h.tipo_id ?? h.tipo);
+               const current = map.get(key);
+               const precio = h.precioNoche ?? 0;
+               if (!current) {
+                  map.set(key, {
+                     id: Number(h.tipo_id ?? 0),
+                     label: h.tipo || `Tipo ${h.tipo_id ?? ""}`,
+                     cantidad: 1,
+                     precio_noche: precio,
+                  });
+               } else {
+                  current.cantidad += 1;
+                  if (!current.precio_noche && precio)
+                     current.precio_noche = precio;
+               }
+            }
+            setTiposResumen(
+               Array.from(map.values()).sort((a, b) => a.id - b.id)
+            );
+         }
       } finally {
          setLoading(false);
       }
@@ -219,7 +326,7 @@ export default function Dashboard() {
 
    // ======= Disponibilidad del momento (HOY) =======
    const availability = useMemo(() => {
-      const cerradas = habs.filter((h) => !h.disponible).length;
+      const cerradas = habs.filter((h) => !h.activa).length;
       const ocupadas = habs.filter((h) => {
          if (!h.disponible) return false; // cerrada ya contado
          return isRoomOccupiedInRange(h.id, reservas, hoyISO, hoyISO);
@@ -321,38 +428,44 @@ export default function Dashboard() {
                      Disponibilidad actual
                   </h2>
                </div>
-               <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-6">
+               <div className="p-4 flex flex-col sm:flex-row sm:items-start gap-6">
                   <Donut
                      libres={availability.libres}
                      ocupadas={availability.ocupadas}
                      cerradas={availability.cerradas}
                   />
-                  <div className="text-sm text-white/70">
-                     <p>
-                        Total habitaciones:{" "}
-                        <span className="text-white font-semibold">
-                           {availability.total}
-                        </span>
-                     </p>
-                     <p className="mt-1">
-                        Fecha:{" "}
-                        <span className="text-white font-semibold">
-                           {fmt(new Date())}
-                        </span>
-                     </p>
-                     <p className="mt-1">
-                        Ocupación real (hoy):{" "}
-                        <span className="text-white font-semibold">
-                           {availability.total
-                              ? Math.round(
-                                   (availability.ocupadas /
-                                      availability.total) *
-                                      100
-                                )
-                              : 0}
-                           %
-                        </span>
-                     </p>
+
+                  <div className="flex-1 space-y-4">
+                     <TiposQuickInfo tipos={tiposResumen} />
+
+                     {/* pie de resumen */}
+                     <div className="flex items-center justify-between gap-6 text-sm text-white/70">
+                        <p>
+                           Total habitaciones:{" "}
+                           <span className="text-white font-semibold">
+                              {availability.total}
+                           </span>
+                        </p>
+                        <p className="mt-1">
+                           Fecha de hoy:{" "}
+                           <span className="text-white font-semibold">
+                              {fmt(new Date())}
+                           </span>
+                        </p>
+                        <p className="mt-1">
+                           Ocupación real (hoy):{" "}
+                           <span className="text-white font-semibold">
+                              {availability.total
+                                 ? Math.round(
+                                      (availability.ocupadas /
+                                         availability.total) *
+                                         100
+                                   )
+                                 : 0}
+                              %
+                           </span>
+                        </p>
+                     </div>
                   </div>
                </div>
             </section>

@@ -14,7 +14,7 @@
    /* estados reservas */
    --color-estado-aprobada: #04913c;
    --color-estado-rechazada: #dc2626;
-   --color-estado-cancelada: #f5e7ea;
+   --color-estado-cancelada: #ffffff99;
 
    /* estados habitaciones */
    --color-habitacion-libre: #04913c;

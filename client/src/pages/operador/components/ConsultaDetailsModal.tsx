@@ -245,14 +245,6 @@ export default function ConsultaDetailsModal({
                   </>
                ) : (
                   <>
-                     <div>
-                        <div className="text-sm text-white/60 mb-1">
-                           Respuesta enviada
-                        </div>
-                        <div className="text-white/80 text-[13px] leading-relaxed bg-white/5 rounded-md p-3 ring-1 ring-inset ring-white/10">
-                           “{data.respuesta || "-"}”
-                        </div>
-                     </div>
                      {data.operadorNombre && (
                         <p className="text-right text-xs text-white/50 pt-1">
                            Respondida por:{" "}

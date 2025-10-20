@@ -43,37 +43,37 @@ export async function fetchHabitaciones(opts?: {
    scope?: "admin" | "operator";
 }): Promise<HabitacionDomain[]> {
    const scope = opts?.scope ?? "admin";
-
-   // no cambiamos la URL de backend
    const { data } = await api.get<HabitacionRaw[]>("/habitaciones");
    const arr = (Array.isArray(data) ? data : []).map(mapHabitacion);
 
-   // operador: solo activas (activa=true)
-   if (scope === "operator") return arr.filter((h) => h.activa === true);
+   /** Eliminada = !activa && !disponible */
+   const isEliminada = (h: Pick<HabitacionDomain, "activa" | "disponible">) =>
+      h.activa === false && h.disponible === false;
 
-   // admin: ve todas
+   if (scope === "operator") {
+      // Operador: solo activas y NO eliminadas
+      return arr.filter((h) => h.activa === true && !isEliminada(h));
+   }
+
+   // Admin: devolver TODO (incluidas eliminadas y desactivadas).
+   // La pantalla de admin ya controla el toggle "Mostrar eliminadas".
    return arr;
 }
-//Cerrar habitacion (operador)
+
+// ==== resto igual ====
+
 export async function bloquearHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/bloquear`, {});
 }
-//Abrir Habitacion (operador)
 export async function desbloquearHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/desbloquear`, {});
 }
-//Eliminar habitacion (admin)
 export async function desactivarHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/desactivar`, {});
 }
-//Reactivar habitacion (admin)
 export async function reactivarHabitacion(id: number) {
    return api.patch(`/habitaciones/${id}/reactivar`, {});
 }
-
-/**
- * Actualiza SOLO las observaciones de la habitación (no toca el nombre).
- */
 export async function actualizarObservacionesHabitacion(
    id: number,
    observaciones: string | null
@@ -93,4 +93,53 @@ export async function crearHabitacion(payload: {
    observaciones?: string | null;
 }) {
    return api.post(`/habitaciones`, payload);
+}
+function toTitleLabelLocal(slug?: string | null) {
+   if (!slug) return "";
+   return slug
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ")
+      .replace("Suit", "Suite");
+}
+
+// === NUEVO: tipo de resumen para la UI rápida ===
+export type TipoHabitacionResumen = {
+   id: number;
+   slug: string; // viene como `nombre` en la tabla tipo_habitacion
+   label: string; // “Parejas Estándar”
+   capacidad: number;
+   descripcion: string;
+   precio_noche: number; // en número
+   cantidad: number; // # de habitaciones ACTIVAS de este tipo
+};
+
+// === NUEVO: fetch de /tipos-habitacion ===
+export async function fetchTiposHabitacionResumen(): Promise<
+   TipoHabitacionResumen[]
+> {
+   const { data } = await api.get<
+      Array<{
+         id: number;
+         nombre: string; // OJO: es el slug en la DB
+         capacidad: number;
+         descripcion: string;
+         precio_noche: string | number | null;
+         cantidad: number;
+      }>
+   >("/habitaciones/tipos/lista");
+
+   const toNum = (v: string | number | null) =>
+      v == null ? 0 : (typeof v === "number" ? v : Number(v)) || 0;
+
+   return (Array.isArray(data) ? data : []).map((r) => ({
+      id: r.id,
+      slug: r.nombre,
+      label: toTitleLabelLocal(r.nombre),
+      capacidad: r.capacidad,
+      descripcion: r.descripcion,
+      precio_noche: toNum(r.precio_noche),
+      cantidad: r.cantidad ?? 0,
+   }));
 }

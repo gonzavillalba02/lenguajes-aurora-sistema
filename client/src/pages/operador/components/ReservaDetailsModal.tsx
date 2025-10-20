@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { StatusBadge } from "../../../components/StatusBadge";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import Toast from "../../../components/Toast";
-
 import AnimacionDetails from "../../../components/AnimacionDetails";
 
 import {
@@ -12,7 +11,6 @@ import {
    rechazarReserva,
    cancelarReserva,
 } from "../../../services/reservas.service";
-import { desbloquearHabitacion } from "../../../services/habitacion.service";
 import type { ReservaDomain } from "../../../types/reserva.types";
 
 export default function ReservaDetailsModal({
@@ -39,7 +37,7 @@ export default function ReservaDetailsModal({
    });
 
    const [confirm, setConfirm] = useState<{
-      action: null | "pendiente_pago" | "aprobar" | "rechazar" | "cancelar";
+      action: null | "aprobar" | "rechazar" | "cancelar";
       open: boolean;
    }>({
       action: null,
@@ -72,14 +70,6 @@ export default function ReservaDetailsModal({
       if (!data || !confirm.action) return;
       setLoading(true);
       try {
-         if (confirm.action === "pendiente_pago") {
-            await pasarAPendientePago(data.id);
-            setToast({
-               open: true,
-               type: "success",
-               message: "Reserva marcada como pendiente de pago.",
-            });
-         }
          if (confirm.action === "aprobar") {
             await aprobarReserva(data.id);
             setToast({
@@ -90,25 +80,22 @@ export default function ReservaDetailsModal({
          }
          if (confirm.action === "rechazar") {
             await rechazarReserva(data.id);
-            await desbloquearHabitacion(data.habitacion.id);
             setToast({
                open: true,
                type: "success",
-               message: "Reserva rechazada y habitación liberada.",
+               message: "Reserva rechazada",
             });
          }
          if (confirm.action === "cancelar") {
             await cancelarReserva(data.id);
-            await desbloquearHabitacion(data.habitacion.id);
             setToast({
                open: true,
                type: "success",
-               message: "Reserva cancelada y habitación liberada.",
+               message: "Reserva cancelada ",
             });
          }
          onChanged?.();
-         onClose(); // el cierre visual lo maneja AnimacionDetails con fade-out
-         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         onClose();
       } catch (err: any) {
          const msg =
             err?.response?.data?.message ||
@@ -126,20 +113,11 @@ export default function ReservaDetailsModal({
       <StatusBadge tipo="reserva" value={estadoLabel(data.estado)} />
    ) : null;
 
-   // Footer: acciones + cerrar
+   // Footer: acciones
    const footer = (
       <div className="mt-6 flex justify-between">
          {data && (
             <div className="flex gap-2">
-               <button
-                  className="px-3 py-2 rounded bg-estado-pendientePago hover:bg-amber-400  text-white"
-                  disabled={loading}
-                  onClick={() =>
-                     setConfirm({ action: "pendiente_pago", open: true })
-                  }
-               >
-                  Pendiente de pago
-               </button>
                <button
                   className="px-3 py-2 rounded bg-estado-aprobada hover:bg-green-600 disabled:opacity-50 text-white"
                   disabled={loading}
@@ -171,7 +149,7 @@ export default function ReservaDetailsModal({
          <AnimacionDetails
             open={open}
             onClose={onClose}
-            title="Reserva"
+            title="Detalle de Reserva"
             headerRight={headerRight}
             footer={footer}
             maxWidth="3xl"
@@ -185,29 +163,56 @@ export default function ReservaDetailsModal({
                <div className="mt-6 h-24 animate-pulse rounded bg-white/5" />
             ) : data ? (
                <div className="grid md:grid-cols-2 gap-4 mt-2 text-white">
-                  <Info
-                     label="Cliente"
-                     value={`${data.cliente.apellido}, ${data.cliente.nombre}`}
-                  />
-                  <Info
-                     label="Fecha de reserva"
-                     value={`${fmt(data.rango.desde)} - ${fmt(
-                        data.rango.hasta
-                     )}`}
-                  />
-                  <Info
-                     label="Habitación"
-                     value={`${data.habitacion.numero}`}
-                  />
-                  <Info label="Tipo" value={data.habitacion.tipo} />
-                  <Info
-                     label="Creada por"
-                     value={data.meta?.creadaPor ?? "—"}
-                  />
-                  <Info
-                     label="Aprobada por"
-                     value={data.meta?.aprobadaPor ?? "—"}
-                  />
+                  {/* Cliente */}
+                  <Section title="Cliente">
+                     <Info
+                        label="Nombre"
+                        value={
+                           `${data.cliente.nombre ?? ""} ${
+                              data.cliente.apellido ?? ""
+                           }`.trim() || "—"
+                        }
+                     />
+                     <Info label="Email" value={data.cliente.email || "—"} />
+                     <Info
+                        label="Teléfono"
+                        value={data.cliente.telefono || "—"}
+                     />
+                     <Info
+                        label="Ubicación"
+                        value={data.cliente.ubicacion || "—"}
+                     />
+                  </Section>
+
+                  {/* Reserva (sin Origen) */}
+                  <Section title="Reserva">
+                     <Info
+                        label="Fechas"
+                        value={`${fmt(data.rango.desde)} - ${fmt(
+                           data.rango.hasta
+                        )}`}
+                     />
+                     <Info
+                        label="Habitación"
+                        value={`${data.habitacion.numero}`}
+                     />
+                     <Info
+                        label="Tipo"
+                        value={humanizeTipo(data.habitacion.tipo)}
+                     />
+                  </Section>
+
+                  {/* Auditoría en modo lineal */}
+                  <Section title="Auditoría" className="md:col-span-2">
+                     <InlineRow
+                        leftLabel="Creada por"
+                        leftValue={data.meta?.creadaPor ?? "Reservado online"}
+                        rightLabel="Último cambio por"
+                        rightValue={data.meta?.modificadaPor ?? "—"}
+                     />
+                  </Section>
+
+                  {/* Observaciones */}
                   <div className="md:col-span-2">
                      <div className="text-sm text-white/60 mb-1">
                         Observaciones
@@ -243,15 +248,72 @@ export default function ReservaDetailsModal({
    );
 }
 
+function Section({
+   title,
+   children,
+   className = "",
+}: {
+   title: string;
+   children: React.ReactNode;
+   className?: string;
+}) {
+   return (
+      <div
+         className={`rounded-lg border border-white/10 p-3 bg-white/5 ${className}`}
+      >
+         <div className="text-sm text-white/60 mb-2">{title}</div>
+         <div className="grid grid-cols-1 gap-2">{children}</div>
+      </div>
+   );
+}
+
 function Info({ label, value }: { label: string; value: string | number }) {
    return (
       <div>
          <div className="text-sm text-white/60">{label}</div>
-         <div className="font-medium">{value}</div>
+         <div className="font-medium break-words">{value}</div>
+      </div>
+   );
+}
+
+function InlineRow({
+   leftLabel,
+   leftValue,
+   rightLabel,
+   rightValue,
+}: {
+   leftLabel: string;
+   leftValue: string | number;
+   rightLabel: string;
+   rightValue: string | number;
+}) {
+   return (
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+         <div className="flex-1">
+            <span className="text-sm text-white/60">{leftLabel}: </span>
+            <span className="font-medium">{leftValue}</span>
+         </div>
+         <div className="flex-1 md:text-right">
+            <span className="text-sm text-white/60">{rightLabel}: </span>
+            <span className="font-medium">{rightValue}</span>
+         </div>
       </div>
    );
 }
 
 function fmt(d: Date) {
    return d.toLocaleDateString();
+}
+
+/* ==== helper local: slug -> label legible ==== */
+function humanizeTipo(v?: string | null) {
+   if (!v) return "—";
+   if (v.includes("_")) {
+      const label = v
+         .split("_")
+         .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+         .join(" ");
+      return label.replace(/\bSuit\b/gi, "Suite");
+   }
+   return v.replace(/\bSuit\b/gi, "Suite");
 }
