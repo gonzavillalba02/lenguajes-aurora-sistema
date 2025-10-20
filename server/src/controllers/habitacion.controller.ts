@@ -282,6 +282,39 @@ export const actualizarObservacionesHabitacion = async (
       res.status(500).json({ message: "Error actualizando observaciones" });
    }
 };
+
+export const getTiposHabitacion = async (req: Request, res: Response) => {
+  try {
+    const [rows]: any = await pool.query(
+      `
+      SELECT 
+        t.id,
+        t.nombre,
+        t.capacidad,
+        t.descripcion,
+        t.precio_noche,
+        COUNT(h.id) AS cantidad
+      FROM tipo_habitacion t
+      LEFT JOIN habitacion h 
+        ON h.tipo_id = t.id 
+        AND h.activa = TRUE
+      GROUP BY 
+        t.id, 
+        t.nombre, 
+        t.capacidad, 
+        t.descripcion, 
+        t.precio_noche
+      ORDER BY t.id ASC;
+      `
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error obteniendo tipos de habitación:", error);
+    res.status(500).json({ message: "Error obteniendo tipos de habitación" });
+  }
+};
+
 //Funcion para pasar de "parejas_estandar" a "Parejas Estándar"
 export function toTitleLabel(slug: string | null | undefined) {
    if (!slug) return "";

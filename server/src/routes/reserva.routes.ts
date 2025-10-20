@@ -6,13 +6,16 @@ import { crearReservaPublica,
         pasarAPendientePago,
         aprobarReserva,
         rechazarReserva, 
-        cancelarReserva } from "../controllers/reserva.controller";
+        cancelarReserva,
+        getDisponibilidadPorTipo,
+        crearReservaDesdeLanding } from "../controllers/reserva.controller";
 import { verifyToken } from "../middlewares/auth.middleware";
 
 const router = Router();
 
 // Pública (sin login)
 router.post("/publica", crearReservaPublica);
+router.post("/reservar-landing", crearReservaDesdeLanding)
 
 // Operador/Admin (con login)
 router.post("/", verifyToken([1, 2]), crearReservaOperador);
@@ -22,5 +25,7 @@ router.patch("/:id/pendiente-pago", verifyToken([1, 2]), pasarAPendientePago);
 router.patch("/:id/aprobar", verifyToken([1, 2]), aprobarReserva);
 router.patch("/:id/rechazar", verifyToken([1, 2]), rechazarReserva);
 router.patch("/:id/cancelar", verifyToken([1, 2]), cancelarReserva);
+
+router.get("/disponibilidad/:tipoId", getDisponibilidadPorTipo);
 
 export default router;
