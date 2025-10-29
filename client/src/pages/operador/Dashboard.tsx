@@ -1,376 +1,499 @@
-// src/pages/operador/Dashboard.tsx
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { RefreshCcw, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarPlus, MessageCircle, Plus, RefreshCcw } from "lucide-react";
 
 import Button from "../../components/Button";
-import Input from "../../components/Input";
-import KpiCard from "./components/KpiCard";
-import ReservasTable from "./components/ReservasTable";
-import RoomsGrid from "./components/RoomsGrid";
+import KpiCard from "../../components/KpiCard";
 
 import CreateReservaModal from "./components/CreateReservaModal";
 import ReservaDetailsModal from "./components/ReservaDetailsModal";
 import HabitacionDetailsModal from "./components/HabitacionDetailsModal";
 
+import { fetchReservasAll } from "../../services/reservas.service";
 import {
-   fetchReservasAll,
-   fetchReservasPendientes,
-   contarPorEstado,
-} from "../../services/reservas.service";
-import { fetchHabitaciones } from "../../services/habitacion.service";
+   fetchHabitaciones,
+   fetchTiposHabitacionResumen,
+} from "../../services/habitacion.service";
 import { ConsultasService } from "../../services/consultas.service";
 
-import type { ISODateString } from "../../types/core";
-import type { HabitacionDomain, HabStatus } from "../../types/habitacion.types";
+import type { HabitacionDomain } from "../../types/habitacion.types";
 import type { ReservaDomain } from "../../types/reserva.types";
-import { RESERVA_LABEL } from "../../types/reserva.types";
-import type { KpiSummary } from "../../types/ui.types";
+import type { ISODateString } from "../../types/core";
+
 import { isRoomOccupiedInRange } from "../../lib/dateRange";
+
+// =============== Helpers de formato ===============
+function fmt(d: Date) {
+   return d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" });
+}
+function toISO(d: Date): ISODateString {
+   return d.toISOString().slice(0, 10) as ISODateString;
+}
+const currency = new Intl.NumberFormat("es-AR", {
+   style: "currency",
+   currency: "ARS",
+   maximumFractionDigits: 0,
+});
+
+// =============== Donut (sin libs) ===============
+function Donut({
+   libres,
+   ocupadas,
+   cerradas,
+}: {
+   libres: number;
+   ocupadas: number;
+   cerradas: number;
+}) {
+   const total = Math.max(libres + ocupadas + cerradas, 1);
+   const pL = libres / total;
+   const pO = ocupadas / total;
+   const pC = cerradas / total;
+
+   // círculo base
+   const R = 60;
+   const C = 2 * Math.PI * R;
+   const seg = (p: number) => Math.max(0.001, p * C); // evita gap 0
+
+   // offsets (SVG dibuja en sentido horario)
+   const sL = seg(pL);
+   const sO = seg(pO);
+   const sC = seg(pC);
+
+   return (
+      <div className="flex items-center gap-6">
+         <svg width="160" height="160" viewBox="0 0 160 160">
+            <g transform="translate(80,80) rotate(-90)">
+               {/* fondo */}
+               <circle
+                  r={R}
+                  fill="none"
+                  stroke="var(--color-bg2,#1F2633)"
+                  strokeWidth="18"
+               />
+               {/* Libres */}
+               <circle
+                  r={R}
+                  fill="none"
+                  stroke="var(--color-hab-libre,#16a34a)"
+                  strokeWidth="18"
+                  strokeDasharray={`${sL} ${C - sL}`}
+                  strokeDashoffset={0}
+               />
+               {/* Ocupadas */}
+               <circle
+                  r={R}
+                  fill="none"
+                  stroke="var(--color-hab-ocupada,#d97706)"
+                  strokeWidth="18"
+                  strokeDasharray={`${sO} ${C - sO}`}
+                  strokeDashoffset={-sL}
+               />
+               {/* Cerradas */}
+               <circle
+                  r={R}
+                  fill="none"
+                  stroke="var(--color-hab-cerrada,#ef4444)"
+                  strokeWidth="18"
+                  strokeDasharray={`${sC} ${C - sC}`}
+                  strokeDashoffset={-(sL + sO)}
+               />
+            </g>
+         </svg>
+
+         <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+               <i className="inline-block size-3 rounded-sm bg-habitacion-libre" />{" "}
+               Libres: <span className="font-semibold">{libres}</span>
+            </div>
+            <div className="flex items-center gap-2">
+               <i className="inline-block size-3 rounded-sm bg-habitacion-ocupada" />{" "}
+               Ocupadas: <span className="font-semibold">{ocupadas}</span>
+            </div>
+            <div className="flex items-center gap-2">
+               <i className="inline-block size-3 rounded-sm bg-habitacion-cerrada" />{" "}
+               Cerradas: <span className="font-semibold">{cerradas}</span>
+            </div>
+         </div>
+      </div>
+   );
+}
+
+// =============== Listado compacto ===============
+function MiniList({
+   title,
+   items,
+   empty,
+   onOpenReserva,
+}: {
+   title: string;
+   items: Array<{
+      id: number;
+      cliente: string;
+      hab: number;
+      desde?: Date;
+      hasta?: Date;
+   }>;
+   empty: string;
+   onOpenReserva: (id: number) => void;
+}) {
+   return (
+      <section className="card">
+         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-bg/30">
+            <h3 className="text-white font-medium">{title}</h3>
+         </div>
+         <div className="p-4">
+            {items.length === 0 ? (
+               <div className="text-sm text-white/70">{empty}</div>
+            ) : (
+               <ul className="space-y-2">
+                  {items.map((x) => (
+                     <li
+                        key={x.id}
+                        className="flex items-center justify-between rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm"
+                     >
+                        <div className="truncate">
+                           <span className="font-medium text-white">
+                              {x.cliente}
+                           </span>{" "}
+                           <span className="text-white/60">— Hab. {x.hab}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-white/70">
+                           {x.desde && <span>In: {fmt(x.desde)}</span>}
+                           {x.hasta && <span>Out: {fmt(x.hasta)}</span>}
+                           <Button
+                              variant="ghost"
+                              onClick={() => onOpenReserva(x.id)}
+                           >
+                              Ver
+                           </Button>
+                        </div>
+                     </li>
+                  ))}
+               </ul>
+            )}
+         </div>
+      </section>
+   );
+}
+
+// =============== Info rápida de tipos (al lado del donut) ===============
+function TiposQuickInfo({
+   tipos,
+}: {
+   tipos: Array<{
+      id: number;
+      label: string;
+      cantidad: number;
+      precio_noche: number;
+   }>;
+}) {
+   if (!tipos?.length) {
+      return (
+         <div className="text-sm text-white/70">Sin información de tipos.</div>
+      );
+   }
+
+   return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full">
+         {tipos.map((t) => (
+            <div
+               key={t.id}
+               className="rounded-lg bg-white/5 border border-white/10 p-3"
+            >
+               <div className="text-xs text-white/60">{t.label}</div>
+               <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-white font-semibold">{t.cantidad}</span>
+                  <span className="text-white/70 text-sm">
+                     • {currency.format(t.precio_noche)}
+                  </span>
+               </div>
+            </div>
+         ))}
+      </div>
+   );
+}
 
 // ===================== Componente =====================
 export default function Dashboard() {
-   const [loading, setLoading] = useState(true);
+   const [, setLoading] = useState(true);
 
-   // Pendientes para la tabla
-   const [rows, setRows] = useState<
-      Array<{
-         id: number;
-         cliente: string;
-         fechaInicio: string; // ISO
-         fechaFin: string; // ISO
-         habitacionNumero: number;
-         tipoHabitacion: string;
-         status:
-            | "Pendiente"
-            | "Pendiente de pago"
-            | "Aprobada"
-            | "Rechazada"
-            | "Cancelada";
-      }>
-   >([]);
-
-   // Datos crudos para derivar UI
-   const [habsDomain, setHabsDomain] = useState<HabitacionDomain[]>([]);
+   const [habs, setHabs] = useState<HabitacionDomain[]>([]);
    const [reservas, setReservas] = useState<ReservaDomain[]>([]);
 
-   // Mapa (rooms para RoomsGrid)
-   const [rooms, setRooms] = useState<
-      Array<{ id: number; numero: number; status: HabStatus }>
-   >([]);
+   const [consultasPendientes, setConsultasPendientes] = useState(0);
 
-   // KPIs
-   const [summary, setSummary] = useState<KpiSummary>({
-      pendientesVerificacion: 0,
-      pendientesPago: 0,
-      aprobadas: 0,
-      rechazadas: 0,
-      canceladas: 0,
-      habitacionesDisponibles: 0,
-      consultasPendientes: 0, // 👈 nuevo campo
-   });
-
-   // Búsqueda tabla pendientes
-   const [q, setQ] = useState("");
-
-   // Modales
+   // modales
    const [showCreate, setShowCreate] = useState(false);
-   const [showDetail, setShowDetail] = useState(false);
-   const [selectedId, setSelectedId] = useState<number | null>(null);
-
-   const [showRoomModal, setShowRoomModal] = useState(false);
-   const [selectedRoom, setSelectedRoom] = useState<HabitacionDomain | null>(
+   const [showReservaDetail, setShowReservaDetail] = useState(false);
+   const [selectedReservaId, setSelectedReservaId] = useState<number | null>(
       null
    );
 
-   // Filtro de fechas para el mapa de habitaciones
-   const todayISO = new Date().toISOString().slice(0, 10);
-   const tomorrowISO = new Date(Date.now() + 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
-   const [mapFrom, setMapFrom] = useState<ISODateString>(todayISO);
-   const [mapTo, setMapTo] = useState<ISODateString>(tomorrowISO);
+   const [showRoomModal, setShowRoomModal] = useState(false);
+   const [selectedRoom] = useState<HabitacionDomain | null>(null);
 
-   // Tabla: filtro local por búsqueda
-   const filteredRows = useMemo(() => {
-      const term = q.trim().toLowerCase();
-      if (!term) return rows;
-      return rows.filter((x) =>
-         `${x.cliente} ${x.tipoHabitacion} ${x.habitacionNumero}`
-            .toLowerCase()
-            .includes(term)
-      );
-   }, [rows, q]);
+   const [tiposResumen, setTiposResumen] = useState<
+      Array<{
+         id: number;
+         label: string;
+         cantidad: number;
+         precio_noche: number;
+      }>
+   >([]);
 
-   // Construir Rooms según rango seleccionado y reservas
-   const buildRoomsForRange = useCallback(
-      (
-         habs: HabitacionDomain[],
-         rs: ReservaDomain[],
-         fromISO: ISODateString,
-         toISO: ISODateString
-      ) => {
-         const next = habs.map((h) => {
-            if (!h.activa)
-               return {
-                  id: h.id,
-                  numero: h.numero,
-                  status: "Cerrada" as HabStatus,
-               };
-            const ocupada = isRoomOccupiedInRange(h.id, rs, fromISO, toISO);
-            return {
-               id: h.id,
-               numero: h.numero,
-               status: (ocupada ? "Ocupada" : "Libre") as HabStatus,
-            };
-         });
-         setRooms(next);
-      },
-      []
-   );
+   const hoyISO = toISO(new Date());
 
    const refresh = useCallback(async () => {
       setLoading(true);
       try {
-         const [allReservas, pendientes, habs, consultasGrouped] =
+         const [allReservas, allHabs, consultasGrouped, tipos] =
             await Promise.all([
                fetchReservasAll(),
-               fetchReservasPendientes(6),
                fetchHabitaciones(),
-               // 👇 trae { pendientes, respondidas, kpi }
-               ConsultasService.fetchGrouped(),
+               ConsultasService.fetchGrouped(), // { kpi: { pendientes, respondidas }, ... }
+               (async () => {
+                  try {
+                     const res = await fetchTiposHabitacionResumen();
+                     return res;
+                  } catch {
+                     return null; // => fallback abajo
+                  }
+               })(),
             ]);
 
-         setHabsDomain(habs);
          setReservas(allReservas);
+         setHabs(allHabs);
+         setConsultasPendientes(consultasGrouped?.kpi?.pendientes ?? 0);
 
-         // KPIs reservas / habitaciones
-         const c = contarPorEstado(allReservas);
-         const habitacionesDisponibles = habs.filter(
-            (h) => h.activa && h.disponible
-         ).length;
+         if (tipos && Array.isArray(tipos)) {
+            setTiposResumen(
+               tipos.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  cantidad: t.cantidad,
+                  precio_noche: t.precio_noche,
+               }))
+            );
+         } else {
+            // Fallback: agrupar por tipo desde habs (solo activas) y tomar un precio de referencia
+            const map = new Map<
+               string,
+               {
+                  id: number;
+                  label: string;
+                  cantidad: number;
+                  precio_noche: number;
+               }
+            >();
+            for (const h of allHabs) {
+               if (!h.activa || !h.disponible) continue;
 
-         const consultasPendientes = consultasGrouped.kpi.pendientes ?? 0;
-
-         setSummary({
-            pendientesVerificacion: c.pendiente_verificacion ?? 0,
-            pendientesPago: c.pendiente_pago ?? 0,
-            aprobadas: c.aprobada ?? 0,
-            rechazadas: c.rechazada ?? 0,
-            canceladas: c.cancelada ?? 0,
-            habitacionesDisponibles,
-            consultasPendientes, // 👈 nuevo
-         });
-
-         // Tabla (pendientes)
-         setRows(
-            pendientes.map((r) => ({
-               id: r.id,
-               cliente: `${r.cliente.apellido}, ${r.cliente.nombre}`,
-               fechaInicio: r.rango.desde.toISOString(),
-               fechaFin: r.rango.hasta.toISOString(),
-               habitacionNumero: r.habitacion.numero || r.habitacion.id,
-               tipoHabitacion: r.habitacion.tipo,
-               // ✅ Label desde el mapa centralizado
-               status: RESERVA_LABEL[r.estado] as
-                  | "Pendiente"
-                  | "Pendiente de pago"
-                  | "Aprobada"
-                  | "Rechazada"
-                  | "Cancelada",
-            }))
-         );
-
-         // Rooms en base a rango seleccionado
-         buildRoomsForRange(habs, allReservas, mapFrom, mapTo);
-      } catch (err) {
-         console.error("Error cargando dashboard:", err);
+               const key = String(h.tipo_id ?? h.tipo);
+               const current = map.get(key);
+               const precio = h.precioNoche ?? 0;
+               if (!current) {
+                  map.set(key, {
+                     id: Number(h.tipo_id ?? 0),
+                     label: h.tipo || `Tipo ${h.tipo_id ?? ""}`,
+                     cantidad: 1,
+                     precio_noche: precio,
+                  });
+               } else {
+                  current.cantidad += 1;
+                  if (!current.precio_noche && precio)
+                     current.precio_noche = precio;
+               }
+            }
+            setTiposResumen(
+               Array.from(map.values()).sort((a, b) => a.id - b.id)
+            );
+         }
       } finally {
          setLoading(false);
       }
-   }, [buildRoomsForRange, mapFrom, mapTo]);
+   }, []);
 
-   // Primera carga
    useEffect(() => {
-      let cancelled = false;
+      let canceled = false;
       (async () => {
          await refresh();
-         if (cancelled) return;
+         if (canceled) return;
       })();
       return () => {
-         cancelled = true;
+         canceled = true;
       };
    }, [refresh]);
 
-   // Recalcular mapa cuando cambian fechas o datos crudos (sin llamar al back)
-   useEffect(() => {
-      if (!habsDomain.length || !reservas.length) return;
-      buildRoomsForRange(habsDomain, reservas, mapFrom, mapTo);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [mapFrom, mapTo, habsDomain, reservas]);
+   // ======= Disponibilidad del momento (HOY) =======
+   const availability = useMemo(() => {
+      const cerradas = habs.filter((h) => !h.activa).length;
+      const ocupadas = habs.filter((h) => {
+         if (!h.disponible) return false; // cerrada ya contado
+         return isRoomOccupiedInRange(h.id, reservas, hoyISO, hoyISO);
+      }).length;
+      const libres = Math.max(habs.length - cerradas - ocupadas, 0);
+      return { libres, ocupadas, cerradas, total: habs.length };
+   }, [habs, reservas, hoyISO]);
+
+   // ======= Check-ins / Check-outs de HOY (solo aprobadas) =======
+   const { checkinsHoy, checkoutsHoy } = useMemo(() => {
+      const inToday = reservas
+         .filter(
+            (r) => r.estado === "aprobada" && toISO(r.rango.desde) === hoyISO
+         )
+         .sort((a, b) => a.habitacion.numero - b.habitacion.numero)
+         .map((r) => ({
+            id: r.id,
+            cliente: `${r.cliente.apellido}, ${r.cliente.nombre}`,
+            hab: r.habitacion.numero || r.habitacion.id,
+            desde: r.rango.desde,
+         }));
+
+      const outToday = reservas
+         .filter(
+            (r) => r.estado === "aprobada" && toISO(r.rango.hasta) === hoyISO
+         )
+         .sort((a, b) => a.habitacion.numero - b.habitacion.numero)
+         .map((r) => ({
+            id: r.id,
+            cliente: `${r.cliente.apellido}, ${r.cliente.nombre}`,
+            hab: r.habitacion.numero || r.habitacion.id,
+            hasta: r.rango.hasta,
+         }));
+
+      return { checkinsHoy: inToday, checkoutsHoy: outToday };
+   }, [reservas, hoyISO]);
 
    return (
       <>
          <div className="space-y-6">
-            {/* KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-               <KpiCard
-                  label="Total de Reservas Pendientes"
-                  value={
-                     summary.pendientesVerificacion + summary.pendientesPago
+            {/* Acciones rápidas */}
+            <div className="flex flex-wrap items-center gap-2">
+               <Button onClick={() => setShowCreate(true)}>
+                  <Plus className="size-4 mr-1" /> Crear Reserva
+               </Button>
+               <Button
+                  variant="ghost"
+                  onClick={() =>
+                     window.location.assign("/operador/habitaciones")
                   }
-                  variant="pendienteReserva"
-                  active
+               >
+                  <CalendarPlus className="size-4 mr-1" /> Ver Habitaciones
+               </Button>
+               <Button
+                  variant="ghost"
+                  onClick={() => window.location.assign("/operador/consultas")}
+               >
+                  <MessageCircle className="size-4 mr-1" /> Ver Consultas
+               </Button>
+               <div className="grow" />
+               <Button variant="ghost" onClick={refresh}>
+                  <RefreshCcw className="size-4" />
+               </Button>
+            </div>
+
+            {/* KPIs de HOY */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+               <KpiCard
+                  label="Libres"
+                  value={availability.libres}
+                  variant="libres"
+               />
+               <KpiCard
+                  label="Ocupadas"
+                  value={availability.ocupadas}
+                  variant="ocupadas"
+               />
+               <KpiCard
+                  label="Cerradas"
+                  value={availability.cerradas}
+                  variant="cerradas"
                />
                <KpiCard
                   label="Consultas Pendientes"
-                  value={summary.consultasPendientes} // 👈 antes era "—"
+                  value={consultasPendientes}
                   variant="consultas"
                />
                <KpiCard
-                  label="Disponibilidad de Habitaciones"
-                  value={summary.habitacionesDisponibles}
-                  variant="disponibles"
+                  label="Check-ins hoy"
+                  value={checkinsHoy.length}
+                  variant="total"
                />
             </div>
 
-            {/* Paneles */}
+            {/* Distribución actual */}
+            <section className="card">
+               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-bg/30">
+                  <h2 className="text-white font-medium">
+                     Disponibilidad actual
+                  </h2>
+               </div>
+               <div className="p-4 flex flex-col sm:flex-row sm:items-start gap-6">
+                  <Donut
+                     libres={availability.libres}
+                     ocupadas={availability.ocupadas}
+                     cerradas={availability.cerradas}
+                  />
+
+                  <div className="flex-1 space-y-4">
+                     <TiposQuickInfo tipos={tiposResumen} />
+
+                     {/* pie de resumen */}
+                     <div className="flex items-center justify-between gap-6 text-sm text-white/70">
+                        <p>
+                           Total habitaciones:{" "}
+                           <span className="text-white font-semibold">
+                              {availability.total}
+                           </span>
+                        </p>
+                        <p className="mt-1">
+                           Fecha de hoy:{" "}
+                           <span className="text-white font-semibold">
+                              {fmt(new Date())}
+                           </span>
+                        </p>
+                        <p className="mt-1">
+                           Ocupación real (hoy):{" "}
+                           <span className="text-white font-semibold">
+                              {availability.total
+                                 ? Math.round(
+                                      (availability.ocupadas /
+                                         availability.total) *
+                                         100
+                                   )
+                                 : 0}
+                              %
+                           </span>
+                        </p>
+                     </div>
+                  </div>
+               </div>
+            </section>
+
+            {/* Listas clave del día */}
             <div className="grid lg:grid-cols-2 gap-6">
-               {/* Reservas pendientes */}
-               <section className="card overflow-hidden">
-                  <Header title="Reservas Pendientes">
-                     <div className="flex items-center gap-2">
-                        <div className="relative">
-                           <Search className="size-4 absolute left-2 top-2.5 text-white/40" />
-                           <Input
-                              placeholder="Buscar cliente / hab."
-                              value={q}
-                              onChange={(e) => setQ(e.target.value)}
-                              style={{ paddingLeft: "2rem" }}
-                           />
-                        </div>
-
-                        <Button onClick={() => setShowCreate(true)}>
-                           + Crear Reserva
-                        </Button>
-                     </div>
-                  </Header>
-
-                  <div className="px-4 pb-4">
-                     <ReservasTable
-                        rows={filteredRows}
-                        loading={loading}
-                        onRowClick={(id) => {
-                           setSelectedId(id);
-                           setShowDetail(true);
-                        }}
-                     />
-                  </div>
-               </section>
-
-               {/* Mapa de habitaciones */}
-               <section className="card">
-                  <Header title="Mapa de Habitaciones">
-                     <div className="flex items-center gap-3">
-                        <Legend />
-                        <Button
-                           variant="ghost"
-                           onClick={async () => {
-                              setLoading(true);
-                              try {
-                                 const habs = await fetchHabitaciones();
-                                 setHabsDomain(habs);
-                                 buildRoomsForRange(
-                                    habs,
-                                    reservas,
-                                    mapFrom,
-                                    mapTo
-                                 );
-                              } finally {
-                                 setLoading(false);
-                              }
-                           }}
-                        >
-                           <RefreshCcw className="size-4" />
-                        </Button>
-                     </div>
-                  </Header>
-
-                  <div className="px-4 pb-5">
-                     {loading ? (
-                        <div className="grid grid-cols-8 gap-2 p-2">
-                           {Array.from({ length: 48 }).map((_, i) => (
-                              <div
-                                 key={i}
-                                 className="h-8 rounded-lg bg-white/5 animate-pulse"
-                              />
-                           ))}
-                        </div>
-                     ) : (
-                        <RoomsGrid
-                           rooms={rooms}
-                           onSelect={(r) => {
-                              const found =
-                                 habsDomain.find((h) => h.id === r.id) || null;
-                              setSelectedRoom(found);
-                              setShowRoomModal(true);
-                           }}
-                        />
-                     )}
-
-                     {/*  Filtro de fechas DEBAJO del grid */}
-                     <div className="mt-4 flex flex-col items-center gap-2">
-                        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-                           <div className="flex items-center gap-1">
-                              <span className="text-white/60">Desde</span>
-                              <input
-                                 type="date"
-                                 className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs"
-                                 value={mapFrom}
-                                 onChange={(e) =>
-                                    setMapFrom(e.target.value as ISODateString)
-                                 }
-                              />
-                           </div>
-                           <div className="flex items-center gap-1">
-                              <span className="text-white/60">Hasta</span>
-                              <input
-                                 type="date"
-                                 className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs"
-                                 value={mapTo}
-                                 onChange={(e) =>
-                                    setMapTo(e.target.value as ISODateString)
-                                 }
-                              />
-                           </div>
-                           <Button
-                              variant="ghost"
-                              onClick={() => {
-                                 const t = new Date();
-                                 const n = new Date(
-                                    Date.now() + 24 * 60 * 60 * 1000
-                                 );
-                                 setMapFrom(
-                                    t
-                                       .toISOString()
-                                       .slice(0, 10) as ISODateString
-                                 );
-                                 setMapTo(
-                                    n
-                                       .toISOString()
-                                       .slice(0, 10) as ISODateString
-                                 );
-                              }}
-                           >
-                              Hoy
-                           </Button>
-                        </div>{" "}
-                     </div>
-                  </div>
-               </section>
+               <MiniList
+                  title="Entradas (check-ins) de hoy"
+                  items={checkinsHoy}
+                  empty="No hay entradas programadas para hoy."
+                  onOpenReserva={(id) => {
+                     setSelectedReservaId(id);
+                     setShowReservaDetail(true);
+                  }}
+               />
+               <MiniList
+                  title="Salidas (check-outs) de hoy"
+                  items={checkoutsHoy}
+                  empty="No hay salidas programadas para hoy."
+                  onOpenReserva={(id) => {
+                     setSelectedReservaId(id);
+                     setShowReservaDetail(true);
+                  }}
+               />
             </div>
          </div>
 
-         {/* Modales */}
+         {/* Modales (reutilizamos los existentes) */}
          <CreateReservaModal
             open={showCreate}
             onClose={() => setShowCreate(false)}
@@ -378,9 +501,9 @@ export default function Dashboard() {
          />
 
          <ReservaDetailsModal
-            open={showDetail}
-            reservaId={selectedId}
-            onClose={() => setShowDetail(false)}
+            open={showReservaDetail}
+            reservaId={selectedReservaId}
+            onClose={() => setShowReservaDetail(false)}
             onChanged={refresh}
          />
 
@@ -389,44 +512,8 @@ export default function Dashboard() {
             room={selectedRoom}
             onClose={() => setShowRoomModal(false)}
             onChanged={refresh}
-            range={{ from: mapFrom, to: mapTo }}
-            reservas={reservas}
+            // para este dashboard no pasamos rango ni reservas; el modal ya calcula HOY correctamente
          />
       </>
-   );
-}
-
-// =============== Subcomponentes locales ===============
-function Header({
-   title,
-   children,
-}: {
-   title: string;
-   children?: React.ReactNode;
-}) {
-   return (
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-bg/30">
-         <h2 className="text-white font-medium">{title}</h2>
-         <div className="flex items-center gap-2">{children}</div>
-      </div>
-   );
-}
-
-function Legend() {
-   return (
-      <div className="hidden sm:flex items-center gap-3 text-xs">
-         <span className="inline-flex items-center gap-1">
-            <i className="inline-block size-3 rounded-sm bg-habitacion-libre" />{" "}
-            Libre
-         </span>
-         <span className="inline-flex items-center gap-1">
-            <i className="inline-block size-3 rounded-sm bg-habitacion-ocupada" />{" "}
-            Ocupada
-         </span>
-         <span className="inline-flex items-center gap-1">
-            <i className="inline-block size-3 rounded-sm bg-habitacion-cerrada" />{" "}
-            Cerrada
-         </span>
-      </div>
    );
 }

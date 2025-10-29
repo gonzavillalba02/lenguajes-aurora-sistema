@@ -1,8 +1,7 @@
-// src/pages/admin/Habitaciones.tsx
 import { useEffect, useMemo, useState } from "react";
-import KpiCard from "../operador/components/KpiCard";
+import KpiCard from "../../components/KpiCard";
 import RoomsGrid from "./components/RoomsGrid";
-import HabitacionDetailsModal from "../operador/components/HabitacionDetailsModal";
+import HabitacionDetailsModal from "./components/HabitacionDetailsModal";
 
 import type { ISODateString } from "../../types/core";
 import type {
@@ -13,24 +12,26 @@ import type {
 import type { ReservaDomain } from "../../types/reserva.types";
 import { fetchHabitaciones } from "../../services/habitacion.service";
 import { fetchReservasAll } from "../../services/reservas.service";
-
-// ✅ Utilidades unificadas de rango/solape
-import { isRoomOccupiedInRange, toDateRange } from "../../lib/dateRange";
+import { isRoomOccupiedInRange } from "../../lib/dateRange";
 
 // Extiende el VM base solo para agregar el "tipo" opcional en esta vista
 type RoomVM = RoomVMBase & { tipo?: string };
 
-export default function Habitaciones() {
+// Eliminada = !activa && !disponible
+const isEliminada = (h: Pick<HabitacionDomain, "activa" | "disponible">) =>
+   h.activa === false && h.disponible === false;
+
+export default function HabitacionesOperador() {
    const [loading, setLoading] = useState(true);
    const [habitaciones, setHabitaciones] = useState<HabitacionDomain[]>([]);
    const [reservas, setReservas] = useState<ReservaDomain[]>([]);
 
-   // Filtros superiores (texto/tipo/estado)
+   // Filtros
    const [q, setQ] = useState("");
    const [estado, setEstado] = useState<HabStatus | "">("");
    const [tipo, setTipo] = useState<string>("");
 
-   // Filtro de fechas (arriba a la derecha)
+   // Fechas
    const todayISO = new Date().toISOString().slice(0, 10) as ISODateString;
    const tomorrowISO = new Date(Date.now() + 24 * 60 * 60 * 1000)
       .toISOString()
@@ -38,19 +39,19 @@ export default function Habitaciones() {
    const [from, setFrom] = useState<ISODateString>(todayISO);
    const [to, setTo] = useState<ISODateString>(tomorrowISO);
 
-   // Modal detalle
+   // Modal
    const [showRoomModal, setShowRoomModal] = useState(false);
    const [selectedRoom, setSelectedRoom] = useState<HabitacionDomain | null>(
       null
    );
 
-   // Carga inicial
+   // Carga inicial (OPERADOR)
    useEffect(() => {
       (async () => {
          setLoading(true);
          try {
             const [habs, rs] = await Promise.all([
-               fetchHabitaciones(),
+               fetchHabitaciones({ scope: "operator" }),
                fetchReservasAll(),
             ]);
             setHabitaciones(Array.isArray(habs) ? habs : []);
@@ -61,35 +62,45 @@ export default function Habitaciones() {
       })();
    }, []);
 
-   // VM por rango: calcula Libre/Ocupada/Cerrada según reservas + fechas (misma regla que modal)
+   // Defensa extra: visibles = activas y no eliminadas
+   const visibles = useMemo(
+      () => habitaciones.filter((h) => h.activa === true && !isEliminada(h)),
+      [habitaciones]
+   );
+
+   // VM por rango
    const roomsByRange: RoomVM[] = useMemo(() => {
-      if (!habitaciones.length) return [];
+      if (!visibles.length) return [];
+      const hoyISO = new Date().toISOString().slice(0, 10) as ISODateString;
 
-      const d1 = toDateRange(from, false);
-      let d2 = toDateRange(to, true); // fin de día para UI
-      // Si rango inválido, forzamos hasta = desde + 1 día
-      if (!(d2 > d1)) d2 = new Date(d1.getTime() + 24 * 60 * 60 * 1000);
-
-      return habitaciones.map((h) => {
-         if (!h.activa)
+      return visibles.map((h) => {
+         // CERRADA si NO disponible (bloqueada por operador)
+         if (!h.disponible) {
             return {
                id: h.id,
                numero: h.numero,
                status: "Cerrada" as HabStatus,
                tipo: h.tipo,
             };
+         }
 
-         const ocupada = isRoomOccupiedInRange(h.id, reservas, from, to);
+         // OCUPADA HOY
+         const ocupadaHoy = isRoomOccupiedInRange(
+            h.id,
+            reservas,
+            hoyISO,
+            hoyISO
+         );
          return {
             id: h.id,
             numero: h.numero,
-            status: (ocupada ? "Ocupada" : "Libre") as HabStatus,
+            status: (ocupadaHoy ? "Ocupada" : "Libre") as HabStatus,
             tipo: h.tipo,
          };
       });
-   }, [habitaciones, reservas, from, to]);
+   }, [visibles, reservas]);
 
-   // KPIs en base al rango
+   // KPIs
    const kpis = useMemo(() => {
       const base = { libres: 0, ocupadas: 0, cerradas: 0 };
       for (const r of roomsByRange) {
@@ -100,16 +111,16 @@ export default function Habitaciones() {
       return { ...base, total: roomsByRange.length };
    }, [roomsByRange]);
 
-   // Tipos disponibles para select
+   // Tipos disponibles
    const tiposDisponibles = useMemo(
       () =>
          Array.from(
-            new Set(habitaciones.map((h) => h.tipo).filter(Boolean))
+            new Set(visibles.map((h) => h.tipo).filter(Boolean))
          ).sort(),
-      [habitaciones]
+      [visibles]
    );
 
-   // Filtro UI (texto/tipo/estado) sobre el VM por rango
+   // Filtros UI
    const filtered: RoomVM[] = useMemo(() => {
       return roomsByRange.filter((r) => {
          const matchesQ = !q || String(r.numero).includes(q);
@@ -138,7 +149,7 @@ export default function Habitaciones() {
             <KpiCard label="Total" value={kpis.total} variant="total" />
          </div>
 
-         {/* Filtros superiores (incluye fechas a la derecha) */}
+         {/* Filtros */}
          <div className="rounded-[var(--radius-xl2)] bg-bg2/60 border border-white/10 p-4 flex flex-wrap items-center gap-3">
             <input
                value={q}
@@ -171,10 +182,9 @@ export default function Habitaciones() {
                <option value="Cerrada">Cerrada</option>
             </select>
 
-            {/* ⬅️ empuja el grupo de fechas hacia la derecha */}
             <div className="grow" />
 
-            {/* Fechas al costado derecho (envuelven bien en móvil) */}
+            {/* Fechas */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
                <div className="flex items-center gap-1">
                   <span className="text-white/60">Desde</span>
@@ -223,8 +233,8 @@ export default function Habitaciones() {
                <RoomsGrid
                   rooms={filtered}
                   onSelect={(r) => {
-                     const found =
-                        habitaciones.find((h) => h.id === r.id) || null;
+                     const found = visibles.find((h) => h.id === r.id) || null;
+                     if (found && isEliminada(found)) return; // por las dudas
                      setSelectedRoom(found);
                      setShowRoomModal(true);
                   }}
@@ -241,7 +251,7 @@ export default function Habitaciones() {
                setLoading(true);
                try {
                   const [habs, rs] = await Promise.all([
-                     fetchHabitaciones(),
+                     fetchHabitaciones({ scope: "operator" }),
                      fetchReservasAll(),
                   ]);
                   setHabitaciones(Array.isArray(habs) ? habs : []);
@@ -250,7 +260,6 @@ export default function Habitaciones() {
                   setLoading(false);
                }
             }}
-            // ✅ Pasamos rango y reservas para que el modal calcule igual que el grid
             range={{ from, to }}
             reservas={reservas}
          />

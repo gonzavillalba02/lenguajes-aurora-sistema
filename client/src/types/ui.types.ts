@@ -21,8 +21,6 @@ export type RoomsGridProps = {
 
 /** KPIs del dashboard (derivados en front) */
 export type KpiSummary = {
-   pendientesVerificacion: number;
-   pendientesPago: number;
    aprobadas: number;
    rechazadas: number;
    canceladas: number;

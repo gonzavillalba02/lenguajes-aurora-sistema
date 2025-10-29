@@ -1,5 +1,5 @@
 type KpiVariant =
-   | "pendienteReserva" // Pendiente de Verificación
+   | "pendienteReserva"
    | "pendientePago"
    | "aprobada"
    | "rechazada"
@@ -9,7 +9,8 @@ type KpiVariant =
    | "libres"
    | "ocupadas"
    | "cerradas"
-   | "total";
+   | "total"
+   | "eliminadas";
 
 type Props = {
    label: string;
@@ -88,6 +89,12 @@ const VAR: Record<
       ring: "ring-white/10",
       dot: "bg-white/30",
       hover: "hover:bg-white/20 hover:text-white",
+   },
+   eliminadas: {
+      text: "text-red-500",
+      ring: "ring-red-500/30",
+      dot: "bg-red-500",
+      hover: "hover:bg-red-500 hover:text-white",
    },
 };
 

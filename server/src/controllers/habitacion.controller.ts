@@ -40,16 +40,21 @@ export const getHabitaciones = async (req: Request, res: Response) => {
    try {
       const [rows]: any = await pool.query(
          `SELECT h.id, h.nombre, h.disponible, h.activa, h.observaciones,
-              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche, t.descripcion
+              t.id AS tipo_id, t.nombre AS tipo_slug, t.capacidad, t.precio_noche, t.descripcion
        FROM habitacion h
        INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
        ORDER BY h.id ASC`
       );
 
-      const enriched = rows.map((r: any) => ({
-         ...r,
-         tipo_label: toTitleLabel(r.tipo_nombre),
-      }));
+      const enriched = rows
+         .map((r: any) => {
+            const label = toTitleLabel(r.tipo_slug);
+            return {
+               ...r,
+               tipo_nombre: label,
+            };
+         })
+         .map(({ tipo_slug, ...resto }: any) => resto); // <- elimina tipo_slug del response
 
       res.json(enriched);
    } catch (error) {
@@ -65,7 +70,7 @@ export const getHabitacionById = async (req: Request, res: Response) => {
    try {
       const [rows]: any = await pool.query(
          `SELECT h.id, h.nombre, h.disponible, h.activa, h.observaciones,
-              t.id AS tipo_id, t.nombre AS tipo_nombre, t.capacidad, t.precio_noche, t.descripcion
+              t.id AS tipo_id, t.nombre AS tipo_slug, t.capacidad, t.precio_noche, t.descripcion
        FROM habitacion h
        INNER JOIN tipo_habitacion t ON h.tipo_id = t.id
        WHERE h.id = ?`,
@@ -77,8 +82,17 @@ export const getHabitacionById = async (req: Request, res: Response) => {
       }
 
       const r = rows[0];
-      const enriched = { ...r, tipo_label: toTitleLabel(r.tipo_nombre) };
-      res.json(enriched);
+      const label = toTitleLabel(r.tipo_slug);
+
+      const enriched = {
+         ...r,
+         tipo_nombre: label, // devolvemos el label en tipo_nombre
+      };
+
+      // quitamos el tipo_slug para no exponerlo si no hace falta
+      const { tipo_slug, ...response } = enriched;
+
+      res.json(response);
    } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Error obteniendo habitación" });
@@ -270,9 +284,9 @@ export const actualizarObservacionesHabitacion = async (
 };
 
 export const getTiposHabitacion = async (req: Request, res: Response) => {
-  try {
-    const [rows]: any = await pool.query(
-      `
+   try {
+      const [rows]: any = await pool.query(
+         `
       SELECT 
         t.id,
         t.nombre,
@@ -284,6 +298,7 @@ export const getTiposHabitacion = async (req: Request, res: Response) => {
       LEFT JOIN habitacion h 
         ON h.tipo_id = t.id 
         AND h.activa = TRUE
+        AND h.disponible = TRUE
       GROUP BY 
         t.id, 
         t.nombre, 
@@ -292,13 +307,13 @@ export const getTiposHabitacion = async (req: Request, res: Response) => {
         t.precio_noche
       ORDER BY t.id ASC;
       `
-    );
+      );
 
-    res.json(rows);
-  } catch (error) {
-    console.error("Error obteniendo tipos de habitación:", error);
-    res.status(500).json({ message: "Error obteniendo tipos de habitación" });
-  }
+      res.json(rows);
+   } catch (error) {
+      console.error("Error obteniendo tipos de habitación:", error);
+      res.status(500).json({ message: "Error obteniendo tipos de habitación" });
+   }
 };
 
 //Funcion para pasar de "parejas_estandar" a "Parejas Estándar"

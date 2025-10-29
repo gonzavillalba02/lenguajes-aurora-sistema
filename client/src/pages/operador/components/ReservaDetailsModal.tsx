@@ -1,17 +1,17 @@
+// src/pages/operador/components/ReservaDetailsModal.tsx
 import { useEffect, useState } from "react";
 import { StatusBadge } from "../../../components/StatusBadge";
 import ConfirmDialog from "../../../components/ConfirmDialog";
 import Toast from "../../../components/Toast";
+import AnimacionDetails from "../../../components/AnimacionDetails";
 
 import {
    fetchReservaById,
-   pasarAPendientePago,
    aprobarReserva,
    rechazarReserva,
    cancelarReserva,
 } from "../../../services/reservas.service";
-import { desbloquearHabitacion } from "../../../services/habitacion.service";
-import type { ReservaDomain } from "../../../types/types";
+import type { ReservaDomain } from "../../../types/reserva.types";
 
 export default function ReservaDetailsModal({
    open,
@@ -37,7 +37,7 @@ export default function ReservaDetailsModal({
    });
 
    const [confirm, setConfirm] = useState<{
-      action: null | "pendiente_pago" | "aprobar" | "rechazar" | "cancelar";
+      action: null | "aprobar" | "rechazar" | "cancelar";
       open: boolean;
    }>({
       action: null,
@@ -59,14 +59,8 @@ export default function ReservaDetailsModal({
          .finally(() => setLoading(false));
    }, [open, reservaId]);
 
-   if (!open) return null;
-
    const estadoLabel = (e: ReservaDomain["estado"]) =>
-      e === "pendiente_verificacion"
-         ? "Pendiente"
-         : e === "pendiente_pago"
-         ? "Pendiente de pago"
-         : e === "aprobada"
+      e === "aprobada"
          ? "Aprobada"
          : e === "rechazada"
          ? "Rechazada"
@@ -76,14 +70,6 @@ export default function ReservaDetailsModal({
       if (!data || !confirm.action) return;
       setLoading(true);
       try {
-         if (confirm.action === "pendiente_pago") {
-            await pasarAPendientePago(data.id);
-            setToast({
-               open: true,
-               type: "success",
-               message: "Reserva marcada como pendiente de pago.",
-            });
-         }
          if (confirm.action === "aprobar") {
             await aprobarReserva(data.id);
             setToast({
@@ -94,22 +80,18 @@ export default function ReservaDetailsModal({
          }
          if (confirm.action === "rechazar") {
             await rechazarReserva(data.id);
-            // liberar la habitación
-            await desbloquearHabitacion(data.habitacion.id);
             setToast({
                open: true,
                type: "success",
-               message: "Reserva rechazada y habitación liberada.",
+               message: "Reserva rechazada",
             });
          }
          if (confirm.action === "cancelar") {
             await cancelarReserva(data.id);
-            // liberar la habitación
-            await desbloquearHabitacion(data.habitacion.id);
             setToast({
                open: true,
                type: "success",
-               message: "Reserva cancelada y habitación liberada.",
+               message: "Reserva cancelada ",
             });
          }
          onChanged?.();
@@ -126,53 +108,116 @@ export default function ReservaDetailsModal({
       }
    };
 
-   return (
-      <div className="fixed inset-0 z-[90] grid place-items-center bg-black/50 p-4">
-         <div className="w-full max-w-3xl rounded-2xl bg-bg p-4 shadow-xl">
-            <div className="flex items-center gap-3">
-               <h3 className="text-xl font-semibold">Reserva</h3>
-               {data && (
-                  <div className="ml-auto">
-                     <StatusBadge
-                        tipo="reserva"
-                        value={estadoLabel(data.estado)}
-                     />
-                  </div>
-               )}
-            </div>
+   // Header right: badge de estado
+   const headerRight = data ? (
+      <StatusBadge tipo="reserva" value={estadoLabel(data.estado)} />
+   ) : null;
 
+   // Footer: acciones
+   const footer = (
+      <div className="mt-6 flex justify-between">
+         {data && (
+            <div className="flex gap-2">
+               <button
+                  className="px-3 py-2 rounded bg-estado-aprobada hover:bg-green-600 disabled:opacity-50 text-white"
+                  disabled={loading}
+                  onClick={() => setConfirm({ action: "aprobar", open: true })}
+               >
+                  Aprobar
+               </button>
+               <button
+                  className="px-3 py-2 rounded bg-estado-rechazada hover:bg-red-700 disabled:opacity-50 text-white"
+                  disabled={loading}
+                  onClick={() => setConfirm({ action: "rechazar", open: true })}
+               >
+                  Rechazar
+               </button>
+               <button
+                  className="px-3 py-2 rounded bg-estado-cancelada hover:bg-gray-700 text-white"
+                  disabled={loading}
+                  onClick={() => setConfirm({ action: "cancelar", open: true })}
+               >
+                  Cancelar
+               </button>
+            </div>
+         )}
+      </div>
+   );
+
+   return (
+      <>
+         <AnimacionDetails
+            open={open}
+            onClose={onClose}
+            title="Detalle de Reserva"
+            headerRight={headerRight}
+            footer={footer}
+            maxWidth="3xl"
+            blur
+            escToClose
+            closeOnBackdrop
+            showCloseButton
+            durationMs={180}
+         >
             {loading ? (
                <div className="mt-6 h-24 animate-pulse rounded bg-white/5" />
             ) : data ? (
-               <div className="grid md:grid-cols-2 gap-4 mt-4">
-                  <Info
-                     label="Cliente"
-                     value={`${data.cliente.apellido}, ${data.cliente.nombre}`}
-                  />
-                  <Info
-                     label="Fecha de reserva"
-                     value={`${fmt(data.rango.desde)} - ${fmt(
-                        data.rango.hasta
-                     )}`}
-                  />
-                  <Info
-                     label="Habitación"
-                     value={`${data.habitacion.numero}`}
-                  />
-                  <Info label="Tipo" value={data.habitacion.tipo} />
-                  <Info
-                     label="Creada por"
-                     value={data.meta?.creadaPor ?? "—"}
-                  />
-                  <Info
-                     label="Aprobada por"
-                     value={data.meta?.aprobadaPor ?? "—"}
-                  />
+               <div className="grid md:grid-cols-2 gap-4 mt-2 text-white">
+                  {/* Cliente */}
+                  <Section title="Cliente">
+                     <Info
+                        label="Nombre"
+                        value={
+                           `${data.cliente.nombre ?? ""} ${
+                              data.cliente.apellido ?? ""
+                           }`.trim() || "—"
+                        }
+                     />
+                     <Info label="Email" value={data.cliente.email || "—"} />
+                     <Info
+                        label="Teléfono"
+                        value={data.cliente.telefono || "—"}
+                     />
+                     <Info
+                        label="Ubicación"
+                        value={data.cliente.ubicacion || "—"}
+                     />
+                  </Section>
+
+                  {/* Reserva (sin Origen) */}
+                  <Section title="Reserva">
+                     <Info
+                        label="Fechas"
+                        value={`${fmt(data.rango.desde)} - ${fmt(
+                           data.rango.hasta
+                        )}`}
+                     />
+                     <Info
+                        label="Habitación"
+                        value={`${data.habitacion.numero}`}
+                     />
+                     <Info
+                        label="Tipo"
+                        value={humanizeTipo(data.habitacion.tipo)}
+                     />
+                  </Section>
+
+                  {/* Auditoría en modo lineal */}
+                  <Section title="Auditoría" className="md:col-span-2">
+                     <InlineRow
+                        leftLabel="Creada por"
+                        leftValue={data.meta?.creadaPor ?? "Reservado online"}
+                        rightLabel="Último cambio por"
+                        rightValue={data.meta?.modificadaPor ?? "—"}
+                     />
+                  </Section>
+
+                  {/* Observaciones */}
                   <div className="md:col-span-2">
                      <div className="text-sm text-white/60 mb-1">
                         Observaciones
                      </div>
-                     <div className="rounded-lg bg-white/5 p-3 min-h-20">
+                     <div className="rounded-lg bg-white/5 p-3 min-h-20 text-white">
                         {data.meta?.observaciones ?? "—"}
                      </div>
                   </div>
@@ -182,52 +227,7 @@ export default function ReservaDetailsModal({
                   No se encontró la reserva.
                </div>
             )}
-
-            <div className="mt-6 flex justify-between">
-               <button
-                  className="px-3 py-2 rounded bg-white/10 hover:bg-white/15"
-                  onClick={onClose}
-               >
-                  Cerrar
-               </button>
-               {data && (
-                  <div className="flex gap-2">
-                     <button
-                        className="px-3 py-2 rounded bg-yellow-600/30 hover:bg-yellow-600/40"
-                        onClick={() =>
-                           setConfirm({ action: "pendiente_pago", open: true })
-                        }
-                     >
-                        Pendiente de pago
-                     </button>
-                     <button
-                        className="px-3 py-2 rounded bg-green-600/40 hover:bg-green-600/50"
-                        onClick={() =>
-                           setConfirm({ action: "aprobar", open: true })
-                        }
-                     >
-                        Aprobar
-                     </button>
-                     <button
-                        className="px-3 py-2 rounded bg-purple-600/30 hover:bg-purple-600/40"
-                        onClick={() =>
-                           setConfirm({ action: "rechazar", open: true })
-                        }
-                     >
-                        Rechazar
-                     </button>
-                     <button
-                        className="px-3 py-2 rounded bg-red-600/40 hover:bg-red-600/50"
-                        onClick={() =>
-                           setConfirm({ action: "cancelar", open: true })
-                        }
-                     >
-                        Cancelar
-                     </button>
-                  </div>
-               )}
-            </div>
-         </div>
+         </AnimacionDetails>
 
          <ConfirmDialog
             open={confirm.open}
@@ -244,6 +244,25 @@ export default function ReservaDetailsModal({
             message={toast.message}
             onClose={() => setToast((t) => ({ ...t, open: false }))}
          />
+      </>
+   );
+}
+
+function Section({
+   title,
+   children,
+   className = "",
+}: {
+   title: string;
+   children: React.ReactNode;
+   className?: string;
+}) {
+   return (
+      <div
+         className={`rounded-lg border border-white/10 p-3 bg-white/5 ${className}`}
+      >
+         <div className="text-sm text-white/60 mb-2">{title}</div>
+         <div className="grid grid-cols-1 gap-2">{children}</div>
       </div>
    );
 }
@@ -252,11 +271,49 @@ function Info({ label, value }: { label: string; value: string | number }) {
    return (
       <div>
          <div className="text-sm text-white/60">{label}</div>
-         <div className="font-medium">{value}</div>
+         <div className="font-medium break-words">{value}</div>
+      </div>
+   );
+}
+
+function InlineRow({
+   leftLabel,
+   leftValue,
+   rightLabel,
+   rightValue,
+}: {
+   leftLabel: string;
+   leftValue: string | number;
+   rightLabel: string;
+   rightValue: string | number;
+}) {
+   return (
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+         <div className="flex-1">
+            <span className="text-sm text-white/60">{leftLabel}: </span>
+            <span className="font-medium">{leftValue}</span>
+         </div>
+         <div className="flex-1 md:text-right">
+            <span className="text-sm text-white/60">{rightLabel}: </span>
+            <span className="font-medium">{rightValue}</span>
+         </div>
       </div>
    );
 }
 
 function fmt(d: Date) {
    return d.toLocaleDateString();
+}
+
+/* ==== helper local: slug -> label legible ==== */
+function humanizeTipo(v?: string | null) {
+   if (!v) return "—";
+   if (v.includes("_")) {
+      const label = v
+         .split("_")
+         .map((s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
+         .join(" ");
+      return label.replace(/\bSuit\b/gi, "Suite");
+   }
+   return v.replace(/\bSuit\b/gi, "Suite");
 }

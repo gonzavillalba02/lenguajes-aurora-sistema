@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import AnimacionDetails from "../../../components/AnimacionDetails";
 import Toast from "../../../components/Toast";
 import ConfirmDialog from "../../../components/ConfirmDialog";
+
 import {
    crearPersona,
    type CrearPersonaDTO,
@@ -10,6 +12,7 @@ import {
    fetchHabitaciones,
    bloquearHabitacion,
 } from "../../../services/habitacion.service";
+
 import type { HabitacionDomain } from "../../../types/habitacion.types";
 import type { CrearReservaByIdDTO } from "../../../types/reserva.types";
 
@@ -27,11 +30,8 @@ export default function CreateReservaModal({
       open: boolean;
       type: "success" | "error";
       message: string;
-   }>({
-      open: false,
-      type: "success",
-      message: "",
-   });
+   }>({ open: false, type: "success", message: "" });
+
    const showToast = (type: "success" | "error", message: string) =>
       setToast({ open: true, type, message });
 
@@ -54,6 +54,7 @@ export default function CreateReservaModal({
 
    // Habitaciones (para mapear número -> id y validar estado)
    const [habitaciones, setHabitaciones] = useState<HabitacionDomain[]>([]);
+   const firstInputRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
       if (!open) return;
@@ -61,8 +62,6 @@ export default function CreateReservaModal({
          .then(setHabitaciones)
          .catch(() => {});
    }, [open]);
-
-   if (!open) return null;
 
    // ---- Validación front ----
    const validar = (): {
@@ -108,7 +107,7 @@ export default function CreateReservaModal({
       return { ok: true, hab };
    };
 
-   const onSubmit = async () => {
+   const onSubmit = () => {
       const v = validar();
       if (!v.ok) {
          showToast("error", v.msg!);
@@ -116,6 +115,10 @@ export default function CreateReservaModal({
       }
       setConfirmOpen(true);
    };
+
+   const handleClose = useCallback(() => {
+      onClose();
+   }, [onClose]);
 
    const doCreate = async () => {
       const v = validar();
@@ -147,7 +150,6 @@ export default function CreateReservaModal({
          try {
             await bloquearHabitacion(hab.id);
          } catch (e) {
-            // No bloquea el flujo si falla; solo log
             console.warn(
                "No se pudo bloquear la habitación tras crear la reserva",
                e
@@ -156,13 +158,14 @@ export default function CreateReservaModal({
 
          showToast("success", r.message || "Reserva creada y aprobada.");
          onCreated?.();
-         setTimeout(onClose, 600);
+         setTimeout(handleClose, 600);
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
          const msg =
             err?.response?.data?.message ||
             err?.message ||
             "No se pudo crear la reserva.";
-         showToast("error", msg); // ej: 409 "Solapamiento de fechas..."
+         showToast("error", msg); // ej: 409 solapamiento de fechas
       } finally {
          setLoading(false);
          setConfirmOpen(false);
@@ -170,67 +173,16 @@ export default function CreateReservaModal({
    };
 
    return (
-      <div className="fixed inset-0 z-[90] grid place-items-center bg-black/50 p-4">
-         <div className="w-full max-w-3xl rounded-2xl bg-bg p-4 shadow-xl">
-            <h3 className="text-xl font-semibold mb-4">Crear Reserva</h3>
-
-            <div className="grid md:grid-cols-2 gap-4">
-               {/* Persona */}
-               <Input
-                  label="Nombre"
-                  value={persona.nombre}
-                  onChange={(v) => setPersona({ ...persona, nombre: v })}
-               />
-               <Input
-                  label="Apellido"
-                  value={persona.apellido}
-                  onChange={(v) => setPersona({ ...persona, apellido: v })}
-               />
-               <Input
-                  label="Email"
-                  value={persona.email ?? ""}
-                  onChange={(v) => setPersona({ ...persona, email: v })}
-               />
-               <Input
-                  label="Teléfono"
-                  value={persona.telefono ?? ""}
-                  onChange={(v) => setPersona({ ...persona, telefono: v })}
-               />
-
-               {/* Reserva */}
-               <Input
-                  label="Fecha inicio"
-                  type="date"
-                  value={fechaInicio}
-                  onChange={setFechaInicio}
-               />
-               <Input
-                  label="Fecha fin"
-                  type="date"
-                  value={fechaFin}
-                  onChange={setFechaFin}
-               />
-               <Input
-                  label="Habitación (Nº)"
-                  type="number"
-                  value={habitacionNumero}
-                  onChange={setHabitacionNumero}
-               />
-               <div className="md:col-span-2">
-                  <label className="text-sm text-white/70">Observaciones</label>
-                  <textarea
-                     className="w-full mt-1 rounded-lg bg-white/5 px-3 py-2 outline-none focus:ring-2 ring-button/60"
-                     rows={3}
-                     value={observaciones}
-                     onChange={(e) => setObservaciones(e.target.value)}
-                  />
-               </div>
-            </div>
-
+      <AnimacionDetails
+         open={open}
+         onClose={handleClose}
+         title={<span className="text-white">Crear Reserva</span>}
+         maxWidth="3xl"
+         footer={
             <div className="mt-6 flex justify-end gap-2">
                <button
-                  className="px-3 py-2 rounded bg-white/10 hover:bg-white/15"
-                  onClick={onClose}
+                  className="px-3 py-2 rounded bg-white/10 text-white hover:bg-white/15"
+                  onClick={handleClose}
                >
                   Cancelar
                </button>
@@ -239,8 +191,78 @@ export default function CreateReservaModal({
                   disabled={loading}
                   onClick={onSubmit}
                >
-                  {loading ? "Guardando..." : "Guardar cambios"}
+                  {loading ? "Guardando..." : "Guardar"}
                </button>
+            </div>
+         }
+      >
+         <div className="grid md:grid-cols-2 gap-4">
+            {/* Persona */}
+            <Input
+               label="Nombre"
+               inputRef={firstInputRef}
+               value={persona.nombre}
+               onChange={(v) => setPersona({ ...persona, nombre: v })}
+            />
+            <Input
+               label="Apellido"
+               value={persona.apellido}
+               onChange={(v) => setPersona({ ...persona, apellido: v })}
+            />
+            <Input
+               label="Email"
+               value={persona.email ?? ""}
+               onChange={(v) => setPersona({ ...persona, email: v })}
+            />
+            <Input
+               label="Teléfono"
+               value={persona.telefono ?? ""}
+               onChange={(v) => setPersona({ ...persona, telefono: v })}
+            />
+
+            {/* Reserva */}
+            <Input
+               label="Fecha inicio"
+               type="date"
+               value={fechaInicio}
+               onChange={setFechaInicio}
+            />
+            <Input
+               label="Fecha fin"
+               type="date"
+               value={fechaFin}
+               onChange={setFechaFin}
+            />
+
+            <div>
+               <label className="text-sm text-white/70">Habitación (Nº)</label>
+               <input
+                  list="habitaciones-list"
+                  type="number"
+                  className="w-full mt-1 rounded-lg bg-white/5 px-3 py-2 outline-none focus:ring-2 ring-button/60 text-white placeholder-white/50"
+                  value={habitacionNumero}
+                  onChange={(e) => setHabitacionNumero(e.target.value)}
+                  placeholder="Ej: 103"
+               />
+               <datalist id="habitaciones-list">
+                  {habitaciones.map((h) => (
+                     <option key={h.id} value={h.numero}>
+                        {h.tipo} {h.activa ? "" : " (cerrada)"}{" "}
+                        {h.disponible ? "" : " (no disponible)"}
+                     </option>
+                  ))}
+               </datalist>
+            </div>
+
+            <div className="md:col-span-2">
+               <label className="text-sm text-white/70">Observaciones</label>
+               <textarea
+                  className="w-full mt-1 rounded-lg bg-white/5 px-3 py-2 outline-none focus:ring-2 ring-button/60 text-white placeholder-white/50"
+                  rows={3}
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Notas internas, requerimientos, etc."
+               />
             </div>
          </div>
 
@@ -261,7 +283,7 @@ export default function CreateReservaModal({
             message={toast.message}
             onClose={() => setToast((t) => ({ ...t, open: false }))}
          />
-      </div>
+      </AnimacionDetails>
    );
 }
 
@@ -270,18 +292,21 @@ function Input({
    type = "text",
    value,
    onChange,
+   inputRef,
 }: {
    label: string;
    type?: string;
    value: string;
    onChange: (v: string) => void;
+   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
    return (
       <div>
          <label className="text-sm text-white/70">{label}</label>
          <input
+            ref={inputRef}
             type={type}
-            className="w-full mt-1 rounded-lg bg-white/5 px-3 py-2 outline-none focus:ring-2 ring-button/60"
+            className="w-full mt-1 rounded-lg bg-white/5 px-3 py-2 outline-none focus:ring-2 ring-button/60 text-white placeholder-white/50"
             value={value}
             onChange={(e) => onChange(e.target.value)}
          />

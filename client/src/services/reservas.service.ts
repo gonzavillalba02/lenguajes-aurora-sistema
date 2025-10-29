@@ -16,7 +16,9 @@ function parseNumeroHabitacion(nombre?: string) {
    const m = nombre.match(/\d+/);
    return m ? Number(m[0]) : 0;
 }
-
+// util corta para normalizar null/undefined de la API a undefined
+const nU = <T>(v: T | null | undefined): T | undefined =>
+   v == null ? undefined : v;
 // --- RAW -> DOMAIN ---
 function mapReserva(raw: ReservaRaw): ReservaDomain {
    return {
@@ -24,7 +26,9 @@ function mapReserva(raw: ReservaRaw): ReservaDomain {
       cliente: {
          nombre: raw.persona_nombre,
          apellido: raw.persona_apellido,
-         email: undefined, // si lo necesitás y viene en el back, agrégalo al Raw
+         email: nU(raw.persona_email),
+         telefono: nU(raw.persona_telefono),
+         ubicacion: nU(raw.persona_ubicacion),
       },
       rango: {
          desde: toDateSafe(raw.fecha_inicio),
@@ -34,13 +38,13 @@ function mapReserva(raw: ReservaRaw): ReservaDomain {
          id: raw.habitacion_id,
          nombre: raw.habitacion_nombre,
          numero: parseNumeroHabitacion(raw.habitacion_nombre),
-         tipo: raw.tipo_habitacion, // nombre real del back
+         tipo: raw.tipo_habitacion,
       },
       estado: raw.estado,
       meta: {
-         observaciones: raw.observaciones ?? null,
-         creadaPor: raw.creada_por_nombre ?? null,
-         aprobadaPor: raw.aprobada_por_nombre ?? null,
+         observaciones: raw.observaciones ?? undefined,
+         creadaPor: raw.creada_por_nombre ?? undefined,
+         modificadaPor: raw.modificada_por_nombre ?? undefined,
       },
    };
 }
@@ -54,21 +58,6 @@ export async function fetchReservasAll(): Promise<ReservaDomain[]> {
    return arr.map(mapReserva);
 }
 
-/** Filtra pendientes (verificación o pago), ordenadas por fecha de inicio asc */
-export async function fetchReservasPendientes(
-   limit = 6
-): Promise<ReservaDomain[]> {
-   const all = await fetchReservasAll();
-   return all
-      .filter(
-         (r) =>
-            r.estado === "pendiente_verificacion" ||
-            r.estado === "pendiente_pago"
-      )
-      .sort((a, b) => a.rango.desde.getTime() - b.rango.desde.getTime())
-      .slice(0, limit);
-}
-
 /** Cuenta por estado (para KPIs) a partir de un arreglo Domain */
 export function contarPorEstado(
    reservas: ReservaDomain[]
@@ -78,13 +67,10 @@ export function contarPorEstado(
          acc[r.estado] = (acc[r.estado] ?? 0) + 1;
          return acc;
       },
-      {
-         pendiente_verificacion: 0,
-         pendiente_pago: 0,
-         aprobada: 0,
-         rechazada: 0,
-         cancelada: 0,
-      } as Record<ReservaEstadoDB, number>
+      { aprobada: 0, rechazada: 0, cancelada: 0 } as Record<
+         ReservaEstadoDB,
+         number
+      >
    );
 }
 
@@ -97,10 +83,6 @@ export async function crearReserva(
    return data;
 }
 
-// ---- STATE TRANSITIONS ----
-export async function pasarAPendientePago(id: number | string) {
-   await api.patch(`/reservas/${id}/pendiente-pago`);
-}
 export async function aprobarReserva(id: number | string) {
    await api.patch(`/reservas/${id}/aprobar`);
 }

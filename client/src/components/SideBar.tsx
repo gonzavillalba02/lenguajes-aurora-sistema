@@ -6,7 +6,9 @@ import type { NavItem } from "../types/core";
 export default function Sidebar({ items }: { items: NavItem[] }) {
    const { clear } = useAuthStore();
 
-   // Sidebar con “hover-reveal” usando una CSS var para ancho
+   // Detecta rutas "base" del estilo "/operador" o "/admin"
+   const isBasePath = (path: string) => /^\/[^/]+$/.test(path);
+
    return (
       <aside
          className="
@@ -35,18 +37,18 @@ export default function Sidebar({ items }: { items: NavItem[] }) {
                   <NavLink
                      key={it.to}
                      to={it.to}
-                     className={({ isActive }) =>
-                        `
+                     end={isBasePath(it.to)} // ← evita que “/operador” quede activo en subrutas
+                     className={({ isActive }) => `
                 group flex items-center gap-3 rounded-lg
                 px-3 py-2 text-sm
+                outline-none focus-visible:ring-2 focus-visible:ring-white/30
                 ${
                    isActive
-                      ? "bg-white/10 text-white"
-                      : "text-white/80 hover:bg-white/5"
+                      ? "bg-white/10 text-white ring-1 ring-white/10 shadow-inner"
+                      : "text-white/80 hover:bg-white/5 hover:text-white"
                 }
                 transition-colors
-              `
-                     }
+              `}
                      title={it.label}
                   >
                      <span className="shrink-0">
@@ -62,15 +64,12 @@ export default function Sidebar({ items }: { items: NavItem[] }) {
             {/* Logout */}
             <button
                onClick={clear}
-               className="
-            mx-2 mb-3 flex items-center gap-3 px-3 py-2 rounded-lg
-            text-white/80 hover:bg-white/5 hover:text-white
-            transition-colors
-          "
+               type="button"
+               className="group flex items-center gap-3 rounded-lg px-3 py-2 text-smoutline-none focus-visible:ring-2 focus-visible:ring-white/30 text-white/80 hover:bg-white/5 hover:text-white transition-colors mx-2 mb-3"
                title="Cerrar sesión"
             >
-               <LogOut className="size-4" />
-               <span className="opacity-0 group-hover/side:opacity-100 transition-opacity">
+               <LogOut className="size-4 shrink-0" />
+               <span className="truncate opacity-0 group-hover/side:opacity-100 transition-opacity">
                   Cerrar sesión
                </span>
             </button>
