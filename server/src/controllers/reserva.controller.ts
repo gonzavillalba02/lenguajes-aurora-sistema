@@ -18,7 +18,6 @@ async function getEstadoId(nombre: string): Promise<number> {
 
 /** Helper: asegura persona por email (crea si no existe, actualiza si existe) */
 async function ensurePersona({
-<<<<<<< HEAD
   nombre, apellido, email, ubicacion, telefono,
 }: { nombre: string; apellido: string; email: string; ubicacion?: string | null; telefono?: string | null; }): Promise<number> {
   const [rows]: any = await pool.query("SELECT id FROM persona WHERE email = ? LIMIT 1", [email]);
@@ -39,31 +38,6 @@ async function ensurePersona({
     [nombre, apellido, ubicacion || null, email, telefono || null]
   );
   return ins.insertId;
-=======
-   nombre,
-   apellido,
-   email,
-   ubicacion,
-   telefono,
-}: {
-   nombre: string;
-   apellido: string;
-   email: string;
-   ubicacion?: string | null;
-   telefono?: string | null;
-}): Promise<number> {
-   const [rows]: any = await pool.query(
-      "SELECT id FROM persona WHERE email = ? LIMIT 1",
-      [email]
-   );
-   if (rows.length) return rows[0].id;
-
-   const [ins]: any = await pool.query(
-      "INSERT INTO persona (nombre, apellido, ubicacion, email, telefono) VALUES (?, ?, ?, ?, ?)",
-      [nombre, apellido, ubicacion || null, email, telefono || null]
-   );
-   return ins.insertId;
->>>>>>> aquiles
 }
 
 /** Helper: valida (inicio <= fin) */
