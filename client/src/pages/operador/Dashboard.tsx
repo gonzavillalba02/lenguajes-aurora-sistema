@@ -323,16 +323,32 @@ export default function Dashboard() {
          canceled = true;
       };
    }, [refresh]);
-
+   const isEliminada = (h: Pick<HabitacionDomain, "activa" | "disponible">) =>
+      h.activa === false && h.disponible === false;
    // ======= Disponibilidad del momento (HOY) =======
    const availability = useMemo(() => {
-      const cerradas = habs.filter((h) => !h.activa).length;
-      const ocupadas = habs.filter((h) => {
-         if (!h.disponible) return false; // cerrada ya contado
-         return isRoomOccupiedInRange(h.id, reservas, hoyISO, hoyISO);
+      const hoy = hoyISO;
+
+      // Alineamos con HabitacionesOperador: contar SOLO visibles (activa y no eliminada)
+      const visibles = habs.filter((h) => h.activa === true && !isEliminada(h));
+
+      // Cerrada = NO disponible (bloqueada por operador)
+      const cerradas = visibles.filter((h) => !h.disponible).length;
+
+      // Ocupada hoy = disponible && overlap con hoy
+      const ocupadas = visibles.filter((h) => {
+         if (!h.disponible) return false;
+         return isRoomOccupiedInRange(h.id, reservas, hoy, hoy);
       }).length;
-      const libres = Math.max(habs.length - cerradas - ocupadas, 0);
-      return { libres, ocupadas, cerradas, total: habs.length };
+
+      const libres = Math.max(visibles.length - cerradas - ocupadas, 0);
+
+      return {
+         libres,
+         ocupadas,
+         cerradas,
+         total: visibles.length, // también alinea el denominador de “Ocupación real (hoy)”
+      };
    }, [habs, reservas, hoyISO]);
 
    // ======= Check-ins / Check-outs de HOY (solo aprobadas) =======
