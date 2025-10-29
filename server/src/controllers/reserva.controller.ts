@@ -8,13 +8,23 @@ async function getEstadoId(nombre: string): Promise<number> {
   return rows[0].id;
 }
 
-/** Helper: asegura persona por email (crea si no existe) */
+/** Helper: asegura persona por email (crea si no existe, actualiza si existe) */
 async function ensurePersona({
   nombre, apellido, email, ubicacion, telefono,
 }: { nombre: string; apellido: string; email: string; ubicacion?: string | null; telefono?: string | null; }): Promise<number> {
   const [rows]: any = await pool.query("SELECT id FROM persona WHERE email = ? LIMIT 1", [email]);
-  if (rows.length) return rows[0].id;
+  
+  if (rows.length) {
+    // Si existe, actualizar los datos
+    const personaId = rows[0].id;
+    await pool.query(
+      "UPDATE persona SET nombre = ?, apellido = ?, ubicacion = ?, telefono = ? WHERE id = ?",
+      [nombre, apellido, ubicacion || null, telefono || null, personaId]
+    );
+    return personaId;
+  }
 
+  // Si no existe, crear nueva persona
   const [ins]: any = await pool.query(
     "INSERT INTO persona (nombre, apellido, ubicacion, email, telefono) VALUES (?, ?, ?, ?, ?)",
     [nombre, apellido, ubicacion || null, email, telefono || null]

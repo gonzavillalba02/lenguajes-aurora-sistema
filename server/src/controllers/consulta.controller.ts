@@ -1,6 +1,30 @@
 import { Request, Response } from "express";
 import { pool } from "../config/database";
 
+/** Helper: asegura persona por email (crea si no existe, actualiza si existe) */
+async function ensurePersona({
+  nombre, apellido, email, ubicacion, telefono,
+}: { nombre: string; apellido: string; email: string; ubicacion?: string | null; telefono?: string | null; }): Promise<number> {
+  const [rows]: any = await pool.query("SELECT id FROM persona WHERE email = ? LIMIT 1", [email]);
+  
+  if (rows.length) {
+    // Si existe, actualizar los datos
+    const personaId = rows[0].id;
+    await pool.query(
+      "UPDATE persona SET nombre = ?, apellido = ?, ubicacion = ?, telefono = ? WHERE id = ?",
+      [nombre, apellido, ubicacion || null, telefono || null, personaId]
+    );
+    return personaId;
+  }
+
+  // Si no existe, crear nueva persona
+  const [ins]: any = await pool.query(
+    "INSERT INTO persona (nombre, apellido, ubicacion, email, telefono) VALUES (?, ?, ?, ?, ?)",
+    [nombre, apellido, ubicacion || null, email, telefono || null]
+  );
+  return ins.insertId;
+}
+
 // Crear una consulta desde la landing
 export const crearConsulta = async (req: Request, res: Response) => {
   const { nombre, apellido, ubicacion, email, telefono, texto } = req.body;
@@ -10,30 +34,23 @@ export const crearConsulta = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Verificar si la persona ya existe
-    const [rows]: any = await pool.query("SELECT id FROM persona WHERE email = ?", [email]);
+    // 1. Crear/obtener persona por email (con actualización automática)
+    const personaId = await ensurePersona({ 
+      nombre, 
+      apellido, 
+      email, 
+      ubicacion: ubicacion || null, 
+      telefono: telefono || null 
+    });
 
-    let personaId: number;
-
-    if (rows.length > 0) {
-      personaId = rows[0].id;
-    } else {
-      // 2. Crear nueva persona
-      const [result]: any = await pool.query(
-        "INSERT INTO persona (nombre, apellido, ubicacion, email, telefono) VALUES (?, ?, ?, ?, ?)",
-        [nombre, apellido, ubicacion || null, email, telefono || null]
-      );
-      personaId = result.insertId;
-    }
-
-    // 3. Obtener id del estado 'pendiente'
+    // 2. Obtener id del estado 'pendiente'
     const [estado]: any = await pool.query("SELECT id FROM estado_consulta WHERE nombre = 'pendiente' LIMIT 1");
     if (estado.length === 0) {
       return res.status(500).json({ message: "No se encontró el estado 'pendiente' en la tabla estado_consulta" });
     }
     const estadoId = estado[0].id;
 
-    // 4. Crear consulta
+    // 3. Crear consulta
     const [consultaResult]: any = await pool.query(
       "INSERT INTO consulta (texto, persona_id, estado_id) VALUES (?, ?, ?)",
       [texto, personaId, estadoId]
